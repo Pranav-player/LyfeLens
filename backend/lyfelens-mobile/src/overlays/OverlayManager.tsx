@@ -20,29 +20,28 @@ const kp = (keypoints: Keypoint[], name: string) =>
 
 export default function OverlayManager({ overlayType, keypoints }: Props) {
     switch (overlayType) {
-        case 'CPR_HANDS':
+        case 'CARDIAC_ARREST':
             return <CPROverlay keypoint={kp(keypoints, 'chest_midpoint')} />
 
-        case 'PRESSURE_ARROW':
-            // Use whichever arm/leg has the wound — backend tells you body_part
+        case 'BLEEDING':
             return <BleedingOverlay keypoint={kp(keypoints, 'left_wrist')} />
 
-        case 'RED_X':
+        case 'FRACTURE':
             return <FractureOverlay keypoint={kp(keypoints, 'left_elbow')} />
 
-        case 'RECOVERY_POSITION':
+        case 'UNCONSCIOUS_BREATHING':
             return <RecoveryOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
 
-        case 'COOL_WATER':
+        case 'BURNS':
             return <BurnsOverlay keypoint={kp(keypoints, 'left_wrist')} />
 
-        case 'HEIMLICH_GUIDE':
+        case 'CHOKING':
             return <HeimlichOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
 
-        case 'CLEAR_SPACE':
+        case 'SEIZURE':
             return <SeizureOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
 
-        case 'FAST_TEST':
+        case 'STROKE':
             return <StrokeOverlay keypoint={kp(keypoints, 'nose')} />
 
         default:

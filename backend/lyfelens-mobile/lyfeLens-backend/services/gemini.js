@@ -2,7 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai')
 const scenarios = require('../data/scenarios')
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY)
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
 const SYSTEM_PROMPT = `
 You are a paramedic AI. Look at the image and return ONLY this JSON.
