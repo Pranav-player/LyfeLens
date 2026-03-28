@@ -47,7 +47,7 @@ const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
     if (audioContext) context += `\nAudio: ${audioContext}`
 
     const response = await client.chat.completions.create({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: 'llama-3.2-90b-vision-preview',
         messages: [
             {
                 role: 'user',
@@ -102,13 +102,18 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
             return { condition_code: 'NONE', confidence: 0 }
         }
 
-        // Clean markdown artifacts
-        const clean = text.replace(/```json|```/g, '').trim()
-        const parsed = JSON.parse(clean)
+        // Extract JSON specifically using regex to ignore any conversational preamble
+        const match = text.match(/\{[\s\S]*?\}/)
+        if (!match) {
+            console.log('[AI] Could not find JSON in response:', text.substring(0, 100))
+            return { condition_code: 'NONE', confidence: 0 }
+        }
+
+        const parsed = JSON.parse(match[0])
 
         console.log(`[AI] Detected: ${parsed.condition} (confidence: ${parsed.confidence}%)`)
 
-        if (parsed.condition === 'NONE') {
+        if (parsed.condition === 'NONE' || parsed.condition === 'CLEAR') {
             return { condition_code: 'NONE', confidence: parsed.confidence || 99 }
         }
 

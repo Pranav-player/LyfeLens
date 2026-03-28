@@ -6,64 +6,48 @@ import BurnsOverlay from './BurnsOverlay'
 import HeimlichOverlay from './HeimlichOverlay'
 import SeizureOverlay from './SeizureOverlay'
 import StrokeOverlay from './strokeOverlay'
-import MedicalHologram from './components/MedicalHologram'
+import HoloScene3D from './3d/HoloScene3D'
 
-type Keypoint = { x: number, y: number }
+type Keypoint = { name?: string; x: number; y: number }
 
 type Props = {
     overlayType: string
-    keypoints: Keypoint[]  // full keypoint array from ML
+    keypoints: Keypoint[]
 }
 
 // Helper — find keypoint by name with fallback
-const kp = (keypoints: Keypoint[], name: string) =>
-    (keypoints as any[]).find((k: any) => k.name === name) || { x: 0.5, y: 0.42 }
+const kp = (keypoints: Keypoint[], name: string, fallback = { x: 0.5, y: 0.42 }) =>
+    (keypoints as any[]).find((k: any) => k.name === name) || fallback
 
 export default function OverlayManager({ overlayType, keypoints }: Props) {
-    switch (overlayType) {
-        case 'CARDIAC_ARREST':
-            const chest = kp(keypoints, 'chest_midpoint')
-            return (
-                <>
-                    <CPROverlay keypoint={chest} />
-                    <MedicalHologram x={chest.x} y={chest.y} conditionCode={overlayType} />
-                </>
-            )
+    // Conditions with full 3D overlays — SVG layer is hidden, only 3D renders
+    const hasFull3D = ['CARDIAC_ARREST', 'BURNS', 'BLEEDING', 'CHOKING'].includes(overlayType)
 
-        case 'BLEEDING':
-            return <BleedingOverlay keypoint={kp(keypoints, 'left_wrist')} />
+    return (
+        <>
+            {/* ── 3D OVERLAY (transparent canvas, pixel-perfect anchoring) ── */}
+            <HoloScene3D overlayType={overlayType} keypoints={keypoints as any} />
 
-        case 'FRACTURE':
-            return <FractureOverlay keypoint={kp(keypoints, 'left_elbow')} />
+            {/* ── SVG 2D OVERLAY for conditions without 3D yet ── */}
+            {!hasFull3D && (() => {
+                switch (overlayType) {
+                    case 'FRACTURE':
+                        return <FractureOverlay keypoint={kp(keypoints, 'left_elbow')} />
 
-        case 'UNCONSCIOUS_BREATHING':
-            return <RecoveryOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
+                    case 'UNCONSCIOUS_BREATHING':
+                        return <RecoveryOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
 
-        case 'BURNS':
-            return <BurnsOverlay keypoint={kp(keypoints, 'left_wrist')} />
+                    case 'SEIZURE':
+                        // Use NOSE keypoint so the safety zone appears near the person's head
+                        return <SeizureOverlay keypoint={kp(keypoints, 'nose', { x: 0.5, y: 0.22 })} />
 
-        case 'CHOKING':
-            return <HeimlichOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
+                    case 'STROKE':
+                        return <StrokeOverlay keypoint={kp(keypoints, 'nose', { x: 0.5, y: 0.22 })} />
 
-        case 'SEIZURE':
-            return <SeizureOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
-
-        case 'STROKE':
-            return <StrokeOverlay keypoint={kp(keypoints, 'nose')} />
-
-        default:
-            return <CPROverlay keypoint={kp(keypoints, 'chest_midpoint')} />
-    }
+                    default:
+                        return null
+                }
+            })()}
+        </>
+    )
 }
-
-/*
-## Summary Of What Changed
-```
-CPR        → hands physically push down, shadow squishes, 100 BPM ✅
-Bleeding   → wound circle + tourniquet guide line + animated pressure hand
-Fracture   → flashing warning + jagged bone indicator + hold-still arrows
-Choking    → fists animate inward thrust + upward arrow + exact position
-Seizure    → real seizure timer counting up + call 112 after 5 minutes
-Stroke     → full FAST test on face + flashing 112 button
-Burns      → flowing water animation downward + 10 min no ice reminder
-Recovery   → body rocks in rolling direction + 3 numbered steps shown*/

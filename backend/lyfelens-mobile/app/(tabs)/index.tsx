@@ -1,11 +1,10 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Button, Dimensions, StyleSheet, View, Text, Pressable } from 'react-native';
+import { Button, Dimensions, StyleSheet, View } from 'react-native';
 import OverlayManager from '../../src/overlays/OverlayManager';
-import IronManHUD from '../../src/overlays/components/IronManHUD';
-import EmergencyCallBar from '../../src/overlays/components/EmergencyCallBar';
-import { startVoiceGuide, stopVoiceGuide, getStepText, getTotalSteps } from '../../src/overlays/services/voiceGuide';
+import HoloGuideUI from '../../src/overlays/components/HoloGuideUI';
+import { startVoiceGuide, stopVoiceGuide, getStepText, getTotalSteps, startDynamicVoiceGuide } from '../../src/overlays/services/voiceGuide';
+import { getMedicalInstructionsFromGroq } from '../../src/overlays/services/groqService';
 
 // Human-readable labels for the HUD
 const HUD_DATABASE: Record<string, any> = {
@@ -55,7 +54,6 @@ const { width, height } = Dimensions.get('window');
 const BACKEND_URL = 'http://172.16.40.207:8080';
 
 export default function ARScreen() {
-  const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
@@ -64,6 +62,9 @@ export default function ARScreen() {
   const [keypoints, setKeypoints] = useState<any[]>([]);
   const [overlayAnchor, setOverlayAnchor] = useState<{ x: number; y: number } | null>(null);
   const [detectionSource, setDetectionSource] = useState<string>('');
+  
+  // Groq tracking state
+  const [groqSteps, setGroqSteps] = useState<string[]>([]);
   const [voiceStep, setVoiceStep] = useState(0);
   const [voiceTotal, setVoiceTotal] = useState(0);
 
@@ -133,9 +134,17 @@ export default function ARScreen() {
         // Start voice guide when condition CHANGES
         if (lastCondition.current !== condition) {
           lastCondition.current = condition;
-          startVoiceGuide(condition, (step, total) => {
-            setVoiceStep(step);
-            setVoiceTotal(total);
+          
+          // 1. Instantly show a scanning state
+          setGroqSteps(["Generating AI response protocols..."]);
+          
+          // 2. Fetch from Groq AI (or fallback mocks if .env key missing)
+          getMedicalInstructionsFromGroq(condition).then((steps) => {
+             setGroqSteps(steps);
+             startDynamicVoiceGuide(condition, steps, (step, total) => {
+               setVoiceStep(step);
+               setVoiceTotal(total);
+             });
           });
         }
 
@@ -172,6 +181,7 @@ export default function ARScreen() {
           stopVoiceGuide();
           setVoiceStep(0);
           setVoiceTotal(0);
+          setGroqSteps([]);
         }
         setCurrentOverlay(null);
         setHudData(null);
@@ -206,37 +216,16 @@ export default function ARScreen() {
         <OverlayManager overlayType={currentOverlay} keypoints={keypoints} />
       )}
 
-      {/* Iron Man HUD */}
-      <IronManHUD data={hudData} isScanning={!currentOverlay} />
+      {/* New Holo-Guide Light Theme UI */}
+      <HoloGuideUI 
+        condition={currentOverlay} 
+        stepText={currentOverlay && groqSteps.length > 0 
+           ? groqSteps[Math.min(Math.max(0, voiceStep - 1), groqSteps.length - 1)] 
+           : "Scanning environment for medical emergencies..."}
+        currentStep={Math.max(1, voiceStep)}
+        totalSteps={groqSteps.length || 5}
+      />
 
-      {/* Emergency Call Bar + Step-by-step instructions */}
-      {currentOverlay && (
-        <EmergencyCallBar
-          condition={currentOverlay}
-          currentStep={voiceStep}
-          totalSteps={voiceTotal || getTotalSteps(currentOverlay)}
-          stepText={getStepText(currentOverlay, voiceStep)}
-        />
-      )}
-
-      {/* Detection source badge */}
-      {detectionSource ? (
-        <View style={styles.sourceTag}>
-          <Text style={styles.sourceText}>
-            {detectionSource === 'movenet' ? '⚡ ML POSE' : 
-             detectionSource === 'groq' || detectionSource === 'gemini' ? '🧠 AI VISION' : 
-             '🔍 ANALYZING'}
-          </Text>
-        </View>
-      ) : null}
-
-      {/* Premium Floating Home Button */}
-      <Pressable 
-        style={styles.homeButton} 
-        onPress={() => router.push('/explore')}
-      >
-        <Text style={styles.homeButtonText}>Home</Text>
-      </Pressable>
     </View>
   );
 }
@@ -244,44 +233,4 @@ export default function ARScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  sourceTag: {
-    position: 'absolute',
-    top: 55,
-    right: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 255, 0.3)',
-  },
-  sourceText: {
-    color: '#00FFCC',
-    fontSize: 10,
-    fontWeight: 'bold',
-    fontFamily: 'monospace',
-    letterSpacing: 0.5,
-  },
-  homeButton: {
-    position: 'absolute',
-    top: 55,
-    left: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  homeButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  }
 });

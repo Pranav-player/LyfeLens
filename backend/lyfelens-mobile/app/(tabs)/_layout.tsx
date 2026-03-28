@@ -1,34 +1,109 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Platform, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+const BRAND = '#207665';
+const INACTIVE = '#94A3B8';
+const TAB_BG = '#FFFFFF';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarStyle: { display: 'none' }, // Hides the bottom navigation bar for immersive view
-      }}>
+        tabBarActiveTintColor: BRAND,
+        tabBarInactiveTintColor: INACTIVE,
+        tabBarStyle: {
+          backgroundColor: TAB_BG,
+          borderTopWidth: 1,
+          borderTopColor: '#E8EDF2',
+          height: Platform.OS === 'ios' ? 88 : 64,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingTop: 8,
+          shadowColor: '#000',
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -4 },
+          elevation: 16,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+          letterSpacing: 0.3,
+          marginTop: 2,
+        },
+      }}
+    >
+      {/* Tab 1: AR Scanner */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Scanner',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{
+              backgroundColor: focused ? `${BRAND}18` : 'transparent',
+              width: 40,
+              height: 28,
+              borderRadius: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Ionicons
+                name={focused ? 'scan-circle' : 'scan-circle-outline'}
+                size={26}
+                color={color}
+              />
+            </View>
+          ),
         }}
       />
+
+      {/* Tab 2: Dashboard */}
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Dashboard',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{
+              backgroundColor: focused ? `${BRAND}18` : 'transparent',
+              width: 40,
+              height: 28,
+              borderRadius: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Ionicons
+                name={focused ? 'home' : 'home-outline'}
+                size={24}
+                color={color}
+              />
+            </View>
+          ),
+        }}
+      />
+
+      {/* Tab 3: First Aid Guide */}
+      <Tabs.Screen
+        name="guide"
+        options={{
+          title: 'Guide',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{
+              backgroundColor: focused ? `${BRAND}18` : 'transparent',
+              width: 40,
+              height: 28,
+              borderRadius: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Ionicons
+                name={focused ? 'book' : 'book-outline'}
+                size={24}
+                color={color}
+              />
+            </View>
+          ),
         }}
       />
     </Tabs>

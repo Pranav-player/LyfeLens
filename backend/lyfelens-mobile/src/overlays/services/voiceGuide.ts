@@ -74,30 +74,42 @@ export const startVoiceGuide = (
     condition: string,
     onStepChange?: (step: number, total: number) => void
 ) => {
-    // Don't restart if same condition
-    if (condition === currentCondition) return;
+    // Fallback to static scripts if dynamic fetch isn't used
+    const steps = VOICE_SCRIPTS[condition]?.map(s => s.text) || ["Emergency condition active. Keep calm."];
+    startDynamicVoiceGuide(condition, steps, onStepChange);
+};
+
+export const startDynamicVoiceGuide = (
+    conditionId: string,
+    steps: string[],
+    onStepChange?: (step: number, total: number) => void
+) => {
+    if (conditionId === currentCondition) return;
 
     stopVoiceGuide();
-    currentCondition = condition;
+    currentCondition = conditionId;
     currentStep = 0;
     stepCallback = onStepChange || null;
 
-    const steps = VOICE_SCRIPTS[condition];
-    if (!steps) return;
+    if (!steps || steps.length === 0) return;
 
     let cumulativeDelay = 0;
 
-    steps.forEach((step, index) => {
-        cumulativeDelay += step.delay;
+    steps.forEach((text, index) => {
+        // Calculate dynamic delay based on word count (roughly 300ms per word + 2000ms pause)
+        const wordCount = text.split(' ').length;
+        const delay = index === 0 ? 0 : (wordCount * 300) + 2000;
+        
+        cumulativeDelay += index === 0 ? 0 : delay;
 
         const timeout = setTimeout(() => {
             currentStep = index + 1;
             if (stepCallback) stepCallback(currentStep, steps.length);
 
-            Speech.speak(step.text, {
+            Speech.speak(text, {
                 language: 'en-US',
                 pitch: 1.0,
-                rate: 0.85, // Slightly slower for clarity
+                rate: 0.85, 
             });
         }, cumulativeDelay);
 
@@ -117,6 +129,7 @@ export const stopVoiceGuide = () => {
 export const getCurrentStep = () => currentStep;
 
 export const getStepText = (condition: string, step: number): string => {
+    // Kept for backwards compatibility, though Groq text will be managed in component state
     const steps = VOICE_SCRIPTS[condition];
     if (!steps || step <= 0) return '';
     return steps[Math.min(step - 1, steps.length - 1)]?.text || '';
