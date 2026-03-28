@@ -197,6 +197,71 @@ const analyzeWithGemini = async (imageBase64, audioContext, moveNetHint) => {
 let groqCooldownUntil = 0
 let geminiCooldownUntil = 0
 
+// ─── Keypoint Prompt (for text-only Groq path — much faster than vision!) ───
+const KEYPOINT_PROMPT = `You are a real-time medical emergency classifier for LyfeLens AR.
+You receive body keypoint coordinates from MoveNet pose detection (values 0-1, normalized).
+Respond ONLY with raw JSON, no markdown, no explanation.
+
+Emergency conditions to detect:
+- CARDIAC_ARREST: Person lying flat/unconscious, no rescuer visible yet. Nose and hips at similar Y.
+- CHOKING: Standing person with both wrists near face/throat.
+- SEIZURE: Person lying down with limbs spread asymmetrically.
+- NONE: Normal activity, standing, sitting at desk, etc.
+
+JSON format:
+{
+  "condition_code": "CARDIAC_ARREST" | "CHOKING" | "SEIZURE" | "NONE",
+  "confidence": <0.0-1.0>,
+  "reasoning": "<one line>"
+}`
+
+// ─── Groq Keypoint Analysis (TEXT-ONLY — instant, uses chat quota not vision quota) ───
+const analyzeFromKeypoints = async (keypoints) => {
+    if (!useGroq || !client || Date.now() <= groqCooldownUntil) return null
+
+    // Format keypoints into a compact readable table
+    const kpText = keypoints
+        .filter(k => k.score > 0.2)
+        .map(k => `${k.name}: x=${k.x?.toFixed(3)}, y=${k.y?.toFixed(3)}, score=${k.score?.toFixed(2)}`)
+        .join('\n')
+
+    if (!kpText) return null
+
+    try {
+        const response = await client.chat.completions.create({
+            model: 'llama-3.1-8b-instant', // text model — fast, cheap, separate quota
+            messages: [
+                { role: 'system', content: KEYPOINT_PROMPT },
+                { role: 'user', content: `Keypoints detected:\n${kpText}` }
+            ],
+            temperature: 0.05,
+            max_tokens: 120
+        })
+
+        const text = response.choices[0]?.message?.content?.trim() || ''
+        console.log('[Groq/KP] Response:', text.substring(0, 100))
+
+        const match = text.match(/\{[\s\S]*?\}/)
+        if (!match) return null
+
+        const parsed = JSON.parse(match[0])
+        const code = (parsed.condition_code || 'NONE').toUpperCase()
+        const conf = parsed.confidence || 0.8
+
+        if (code === 'NONE') return null
+        return { condition_code: code, confidence: Math.round(conf * 100), source: 'groq-kp' }
+    } catch (err) {
+        const msg = err.message || ''
+        if (msg.includes('429') || msg.includes('rate_limit')) {
+            console.log('[Groq/KP] ⚠️ Rate limited — pausing 5 min')
+            groqCooldownUntil = Date.now() + 5 * 60 * 1000
+        } else {
+            console.log('[Groq/KP] Error:', msg.substring(0, 80))
+        }
+        return null
+    }
+}
+
 // ─── Main entry point ───
 const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) => {
     try {
@@ -292,4 +357,4 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
     }
 }
 
-module.exports = { analyzeScene }
+module.exports = { analyzeScene, analyzeFromKeypoints }
