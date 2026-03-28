@@ -35,6 +35,21 @@ const HUD_DATABASE: Record<string, any> = {
     description: 'Burn detected. Run cool water for 10 minutes.',
     precautions: ['NO ice', 'NO butter or toothpaste', 'Do NOT pop blisters'],
   },
+  'BURNS_FIRST_DEGREE': {
+    label: '1ST DEGREE BURN',
+    description: 'Superficial burn — redness only, no blisters.',
+    precautions: ['Cool running water for 10-20 min', 'NO ice', 'Aloe vera helps'],
+  },
+  'BURNS_SECOND_DEGREE': {
+    label: '2ND DEGREE BURN',
+    description: 'Blisters present. Partial skin damage detected.',
+    precautions: ['Cool water 20 min', 'Do NOT pop blisters', 'Cover with cling film'],
+  },
+  'BURNS_THIRD_DEGREE': {
+    label: '3RD DEGREE BURN — CRITICAL',
+    description: 'Full thickness burn. Call emergency services NOW.',
+    precautions: ['Call 112 NOW', 'Do NOT run water on it', 'Cover with clean dry cloth'],
+  },
   'CHOKING': {
     label: 'CHOKING — AIRWAY BLOCKED',
     description: 'Person cannot breathe. Perform Heimlich maneuver now.',

@@ -38,7 +38,10 @@ function Scene({ overlayType, keypoints }: Props) {
       const { worldX, worldY } = toWorld(findKp(keypoints, 'sternum'));
       return <CPRHands3D worldX={worldX} worldY={worldY} />;
     }
-    case 'BURNS': {
+    case 'BURNS':
+    case 'BURNS_FIRST_DEGREE':
+    case 'BURNS_SECOND_DEGREE':
+    case 'BURNS_THIRD_DEGREE': {
       const { worldX, worldY } = toWorld(findKp(keypoints, 'left_wrist'));
       return <BurnWater3D worldX={worldX} worldY={worldY} />;
     }
@@ -81,7 +84,7 @@ class CanvasErrorBoundary extends React.Component<
 }
 
 export default function HoloScene3D({ overlayType, keypoints }: Props) {
-  const has3D = ['CARDIAC_ARREST', 'BURNS', 'BLEEDING', 'MINOR_CUT', 'MAJOR_CUT', 'MINOR_BLEEDING', 'SEVERE_BLEEDING', 'CHOKING'].includes(overlayType);
+  const has3D = ['CARDIAC_ARREST', 'BURNS', 'BURNS_FIRST_DEGREE', 'BURNS_SECOND_DEGREE', 'BURNS_THIRD_DEGREE', 'BLEEDING', 'MINOR_CUT', 'MAJOR_CUT', 'MINOR_BLEEDING', 'SEVERE_BLEEDING', 'CHOKING'].includes(overlayType);
   if (!has3D) return null;
 
   console.log(`[HoloScene3D] Rendering: ${overlayType}`);

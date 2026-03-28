@@ -37,6 +37,9 @@ export default function OverlayManager({ overlayType, keypoints }: Props) {
                 return <BleedingOverlay keypoint={kp(keypoints, 'left_wrist')} />
 
             case 'BURNS':
+            case 'BURNS_FIRST_DEGREE':
+            case 'BURNS_SECOND_DEGREE':
+            case 'BURNS_THIRD_DEGREE':
                 return <BurnsOverlay keypoint={kp(keypoints, 'left_wrist')} />
 
             case 'CHOKING':

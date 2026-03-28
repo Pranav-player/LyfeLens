@@ -82,23 +82,40 @@ Analyze the image with extreme forensic detail. Return ONLY raw JSON. No markdow
 11. "cardiac_arrest"
     VISUAL: Unconscious, flat on back, NO breathing signs, entirely lifeless. DO NOT OVERPREDICT.
 
-12. "burns"
-    VISUAL: Scalded/reddened skin, blistering, charring, severe redness from heat/fire exposure.
+12. "burns_first_degree"
+    VISUAL: Superficial burn. Skin is RED, dry, no blisters. Painful to touch.
+    AREA: Localized redness, similar to sunburn. No skin peeling.
+    DEPTH: Epidermis only. No tissue damage visible.
+    EXAMPLES: Sunburn, brief contact with hot surface, mild steam burns.
 
-13. "normal_skin" — No injury detected.
+13. "burns_second_degree"
+    VISUAL: Partial thickness burn. WET, glistening appearance. BLISTERS present (fluid-filled).
+    AREA: Red and white mottled pattern. Swelling present. Very painful.
+    DEPTH: Through epidermis into dermis. Blisters may be intact or ruptured.
+    EXAMPLES: Scalding water, prolonged heat contact, hot oil splash.
+
+14. "burns_third_degree"
+    VISUAL: Full thickness burn. Skin appears WHITE, WAXY, LEATHERY, or CHARRED/BLACK.
+    AREA: Skin may look dry and stiff. Surrounding area red/blistered.
+    DEPTH: Through all skin layers. May expose fat or muscle. PAINLESS at center (nerve damage).
+    EXAMPLES: Flame burns, electrical burns, prolonged chemical exposure.
+
+15. "normal_skin" — No injury detected.
 
 === FEATURES TO ANALYZE ===
 Wound: length, width, depth (visual estimate), edge separation.
 Blood: area, spread rate, flow continuity, color intensity (red spectrum).
+Burns: redness intensity, blister presence/count, charring, skin texture change, affected area size.
 Orthopedic: angulation, deformity, swelling asymmetry.
 
 Return this JSON if ANY emergency found:
 {
   "injury_detected": true,
-  "injury_type": "<one of the 13 classes above>",
+  "injury_type": "<one of the 15 classes above>",
   "confidence": <0.0-1.0>,
   "wound_size_estimate": "<small|medium|large|none>",
   "blood_flow": "<absent|slow|oozing|continuous|heavy|none>",
+  "burn_degree": "<first|second|third|none>",
   "body_part_detected": "<chest|left_arm|right_arm|left_leg|right_leg|head|full_body>"
 }
 
@@ -109,6 +126,7 @@ If completely normal:
   "confidence": 0.99,
   "wound_size_estimate": "none",
   "blood_flow": "none",
+  "burn_degree": "none",
   "body_part_detected": "none"
 }`
 

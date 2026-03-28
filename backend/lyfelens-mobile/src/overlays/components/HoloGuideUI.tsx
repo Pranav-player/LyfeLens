@@ -65,6 +65,43 @@ const CONDITION_META: Record<
       'Cover loosely with cling film after cooling',
     ],
   },
+  BURNS_FIRST_DEGREE: {
+    label: '1ST DEGREE BURN',
+    icon: '☀️',
+    color: '#DD8800',
+    precautions: [
+      'Run cool water for 10-20 minutes',
+      'NO ice — it damages tissue further',
+      'Aloe vera gel can help soothe pain',
+      'Take over-the-counter pain relief if needed',
+      'Cover loosely to protect',
+    ],
+  },
+  BURNS_SECOND_DEGREE: {
+    label: '2ND DEGREE BURN',
+    icon: '🔥',
+    color: '#CC4400',
+    precautions: [
+      'Run cool water IMMEDIATELY for 20 minutes',
+      'Do NOT pop or drain blisters',
+      'NO creams, butter, or toothpaste',
+      'Cover loosely with cling film or sterile dressing',
+      'Seek medical attention if larger than 3 inches',
+    ],
+  },
+  BURNS_THIRD_DEGREE: {
+    label: '3RD DEGREE BURN — CRITICAL',
+    icon: '🚨',
+    color: '#CC0000',
+    precautions: [
+      'Call 112 / emergency services IMMEDIATELY',
+      'Do NOT run water on a 3rd degree burn',
+      'Do NOT remove clothing stuck to the burn',
+      'Cover with a clean, dry cloth',
+      'Keep the person warm — watch for shock',
+      'Do NOT apply ANY ointment or cream',
+    ],
+  },
   CHOKING: {
     label: 'CHOKING',
     icon: '😮',
