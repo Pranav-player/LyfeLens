@@ -83,29 +83,40 @@ Analyze the image with extreme forensic detail. Return ONLY raw JSON. No markdow
     VISUAL: Unconscious, flat on back, NO breathing signs, entirely lifeless. DO NOT OVERPREDICT.
 
 12. "burns_first_degree"
-    VISUAL: Superficial burn. Skin is RED, dry, no blisters. Painful to touch.
-    AREA: Localized redness, similar to sunburn. No skin peeling.
-    DEPTH: Epidermis only. No tissue damage visible.
-    EXAMPLES: Sunburn, brief contact with hot surface, mild steam burns.
+    VISUAL: Superficial burn affecting epidermis ONLY.
+    COLOR: Uniform redness, inflamed appearance. No white or charred areas.
+    TEXTURE: Skin surface remains smooth and intact. No blisters whatsoever.
+    MOISTURE: Dry. No wet or shiny surface.
+    SWELLING: Mild swelling possible but skin structure intact.
+    TISSUE: No deeper tissue exposure. No peeling.
+    EXAMPLES: Mild sunburn, light contact burn, brief steam exposure.
 
 13. "burns_second_degree"
-    VISUAL: Partial thickness burn. WET, glistening appearance. BLISTERS present (fluid-filled).
-    AREA: Red and white mottled pattern. Swelling present. Very painful.
-    DEPTH: Through epidermis into dermis. Blisters may be intact or ruptured.
-    EXAMPLES: Scalding water, prolonged heat contact, hot oil splash.
+    VISUAL: Partial thickness burn into dermis.
+    COLOR: Red, pink, or mottled red-and-white. Patchy redness.
+    TEXTURE: BLISTERS present — fluid-filled bubbles on skin. Skin may peel or partially break.
+    MOISTURE: WET, shiny, glistening surface. Reflective appearance from blister fluid.
+    SWELLING: Moderate swelling around burn area.
+    TISSUE: Partial skin damage. Dermis visible if blisters ruptured.
+    EXAMPLES: Scald burns from hot liquids, strong heat exposure, hot oil splash.
 
 14. "burns_third_degree"
-    VISUAL: Full thickness burn. Skin appears WHITE, WAXY, LEATHERY, or CHARRED/BLACK.
-    AREA: Skin may look dry and stiff. Surrounding area red/blistered.
-    DEPTH: Through all skin layers. May expose fat or muscle. PAINLESS at center (nerve damage).
-    EXAMPLES: Flame burns, electrical burns, prolonged chemical exposure.
+    VISUAL: Full thickness burn through ALL skin layers.
+    COLOR: WHITE, WAXY, dark BROWN, or CHARRED BLACK. Never red (nerves destroyed).
+    TEXTURE: Thick, LEATHERY, dry and stiff. No blisters (too deep). Irregular deformed surface.
+    MOISTURE: Completely DRY. No shiny/wet areas.
+    TISSUE: Deep tissue destruction. Fat or muscle may be visible. Skin structure collapsed.
+    EXAMPLES: Direct flame burns, electrical burns, prolonged chemical exposure.
 
 15. "normal_skin" — No injury detected.
 
 === FEATURES TO ANALYZE ===
 Wound: length, width, depth (visual estimate), edge separation.
 Blood: area, spread rate, flow continuity, color intensity (red spectrum).
-Burns: redness intensity, blister presence/count, charring, skin texture change, affected area size.
+Burn Color: redness intensity, white/pale regions, black/charred areas, mottling pattern.
+Burn Texture: blister detection (count + size), skin smoothness, leathery texture, peeling.
+Burn Moisture: dry vs wet surface, reflective/shiny areas indicating blisters.
+Burn Structure: skin deformation, burn region boundaries, area coverage.
 Orthopedic: angulation, deformity, swelling asymmetry.
 
 Return this JSON if ANY emergency found:
@@ -116,6 +127,9 @@ Return this JSON if ANY emergency found:
   "wound_size_estimate": "<small|medium|large|none>",
   "blood_flow": "<absent|slow|oozing|continuous|heavy|none>",
   "burn_degree": "<first|second|third|none>",
+  "blisters_detected": <true|false>,
+  "burn_area_size": "<small|medium|large|none>",
+  "skin_texture": "<smooth|blistered|peeling|leathery|charred|normal>",
   "body_part_detected": "<chest|left_arm|right_arm|left_leg|right_leg|head|full_body>"
 }
 
@@ -127,6 +141,9 @@ If completely normal:
   "wound_size_estimate": "none",
   "blood_flow": "none",
   "burn_degree": "none",
+  "blisters_detected": false,
+  "burn_area_size": "none",
+  "skin_texture": "normal",
   "body_part_detected": "none"
 }`
 
@@ -156,7 +173,7 @@ const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
             }
         ],
         temperature: 0.1,
-        max_tokens: 200
+        max_tokens: 300
     })
 
     const text = response.choices[0]?.message?.content?.trim() || ''
@@ -206,6 +223,13 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
 
         console.log(`[AI] Deep Medical Scan: ${injuryType} (confidence: ${parsed.confidence}%)`)
         if (parsed.wound_size_estimate) console.log(`[AI] -> Wound: ${parsed.wound_size_estimate}, Blood: ${parsed.blood_flow}`)
+        if (parsed.burn_degree && parsed.burn_degree !== 'none') {
+            console.log(`[AI] 🔥 BURN FORENSICS:`)
+            console.log(`[AI]    Degree: ${parsed.burn_degree}`)
+            console.log(`[AI]    Blisters: ${parsed.blisters_detected}`)
+            console.log(`[AI]    Area: ${parsed.burn_area_size}`)
+            console.log(`[AI]    Texture: ${parsed.skin_texture}`)
+        }
 
         if (!isEmergency) {
             return { condition_code: 'NONE', confidence: parsed.confidence || 99 }
@@ -215,11 +239,15 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
         // (MINOR_CUT, SEVERE_BLEEDING) don't exist in the legacy scenarios json.
         return {
             condition_code: injuryType,
-            confidence: (parsed.confidence * 100) || 90, // AI returns 0.0-1.0
+            confidence: (parsed.confidence * 100) || 90,
             body_part_detected: parsed.body_part_detected || 'none',
             forensics: {
                 wound_size: parsed.wound_size_estimate,
-                blood_flow: parsed.blood_flow
+                blood_flow: parsed.blood_flow,
+                burn_degree: parsed.burn_degree || 'none',
+                blisters_detected: parsed.blisters_detected || false,
+                burn_area_size: parsed.burn_area_size || 'none',
+                skin_texture: parsed.skin_texture || 'normal'
             }
         }
     } catch (e) {
