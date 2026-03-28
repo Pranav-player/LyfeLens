@@ -468,28 +468,19 @@ export default function ARScreen() {
         isLoadingInstructions={!!currentOverlay && groqSteps.length === 0}
       />
 
-      {/* === BIG BOLD INSTRUCTION OVERLAY === */}
+      {/* === COMPACT STEP BAR (bottom) — one line only === */}
       {currentStepText && (
-        <View style={styles.bigInstructionBox}>
-          <Text style={styles.bigInstructionStep}>
-            STEP {voiceStep} OF {groqSteps.length}
-          </Text>
-          <Text style={styles.bigInstructionText}>
-            {currentStepText}
-          </Text>
-          
-          {/* Interactive Voice Controls */}
-          <View style={styles.controlsRow}>
-            <TouchableOpacity style={styles.controlButton} onPress={prevStep}>
-              <Text style={styles.controlText}>{"< PREV"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlButtonRepeat} onPress={repeatStep}>
-              <Text style={styles.controlText}>{"↻ REPEAT"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlButton} onPress={nextStep}>
-              <Text style={styles.controlText}>{"NEXT >"}</Text>
-            </TouchableOpacity>
+        <View style={styles.compactStepBar}>
+          <TouchableOpacity style={styles.stepBtn} onPress={prevStep}>
+            <Text style={styles.stepBtnText}>◀</Text>
+          </TouchableOpacity>
+          <View style={styles.stepTextWrap}>
+            <Text style={styles.stepLabel}>{voiceStep}/{groqSteps.length}</Text>
+            <Text style={styles.stepInstruction} numberOfLines={2}>{currentStepText}</Text>
           </View>
+          <TouchableOpacity style={styles.stepBtn} onPress={nextStep}>
+            <Text style={styles.stepBtnText}>▶</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -520,66 +511,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 1,
   },
-  bigInstructionBox: {
+  compactStepBar: {
     position: 'absolute',
-    bottom: 50,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',   // was 0.85 — now see-through
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#00CC88',
-    shadowColor: '#00CC88',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  bigInstructionStep: {
-    color: '#00CC88',
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 2,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  bigInstructionText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-    lineHeight: 30,
-    marginBottom: 20,
-  },
-  controlsRow: {
+    bottom: 30,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
-  },
-  controlButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    flex: 1,
-    marginHorizontal: 5,
-  },
-  controlButtonRepeat: {
-    backgroundColor: 'rgba(0, 204, 136, 0.2)',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    flex: 1,
-    marginHorizontal: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
     borderWidth: 1,
-    borderColor: '#00CC88',
+    borderColor: 'rgba(0, 204, 136, 0.4)',
   },
-  controlText: {
+  stepBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 204, 136, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepBtnText: {
+    color: '#00CC88',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  stepTextWrap: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  stepLabel: {
+    color: '#00CC88',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  stepInstruction: {
     color: '#FFF',
-    textAlign: 'center',
-    fontWeight: '800',
-    fontSize: 14,
-  }
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
 });

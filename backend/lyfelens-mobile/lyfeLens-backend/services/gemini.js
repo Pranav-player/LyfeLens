@@ -154,7 +154,7 @@ const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
     if (audioContext) context += `\nAudio: ${audioContext}`
 
     const response = await client.chat.completions.create({
-        model: 'llama-3.2-11b-vision-preview',   // Fast, stable, available on free tier
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',   // ONLY working vision model on Groq
         messages: [
             {
                 role: 'user',
@@ -203,16 +203,18 @@ let geminiCooldownUntil = 0
 const KEYPOINT_PROMPT = `You are a real-time medical emergency classifier for LyfeLens AR.
 You receive body keypoint coordinates from MoveNet pose detection (values 0-1, normalized).
 Respond ONLY with raw JSON, no markdown, no explanation.
+Be VERY conservative — only classify if you are highly confident. Default to NONE.
 
 Emergency conditions to detect:
-- CARDIAC_ARREST: Person lying flat/unconscious, no rescuer visible yet. Nose and hips at similar Y.
-- CHOKING: Standing person with both wrists near face/throat.
-- SEIZURE: Person lying down with limbs spread asymmetrically.
-- NONE: Normal activity, standing, sitting at desk, etc.
+- CARDIAC_ARREST: Person LYING FLAT on their back. Nose Y and hip Y must be CLOSE (difference < 0.15). Both shoulders visible at similar Y. The person must be HORIZONTAL. If nose.y < 0.2 the person is likely STANDING — return NONE. Confidence must be >= 0.75.
+- CHOKING: Person STANDING with BOTH wrists VERY near throat (wrist Y within 0.08 of nose Y, wrist X within 0.12 of nose X). Must have BOTH wrists near face. If only one wrist near face → NONE. Confidence must be >= 0.80.
+- NONE: Normal activity, standing, sitting, walking, any ambiguous pose. When in doubt, ALWAYS return NONE.
+
+CRITICAL: Do NOT predict CARDIAC_ARREST for standing or sitting people. Only for fully horizontal, lying-down posture.
 
 JSON format:
 {
-  "condition_code": "CARDIAC_ARREST" | "CHOKING" | "SEIZURE" | "NONE",
+  "condition_code": "CARDIAC_ARREST" | "CHOKING" | "NONE",
   "confidence": <0.0-1.0>,
   "reasoning": "<one line>"
 }`
@@ -251,7 +253,14 @@ const analyzeFromKeypoints = async (keypoints) => {
         const conf = parsed.confidence || 0.8
 
         if (code === 'NONE') return null
-        return { condition_code: code, confidence: Math.round(conf * 100), source: 'groq-kp' }
+
+        // ★ Confidence gate — reject low-confidence hallucinations (e.g. CHOKING at 30%)
+        const confPct = Math.round(conf * 100)
+        if (confPct < 60) {
+            console.log(`[Groq/KP] Rejected ${code} — confidence ${confPct}% < 60% threshold`)
+            return null
+        }
+        return { condition_code: code, confidence: confPct, source: 'groq-kp' }
     } catch (err) {
         const msg = err.message || ''
         if (msg.includes('429') || msg.includes('rate_limit')) {
