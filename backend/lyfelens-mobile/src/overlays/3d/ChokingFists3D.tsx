@@ -25,33 +25,27 @@ function Fist({
       {/* Fist body */}
       <mesh>
         <boxGeometry args={[30, 24, 28]} />
-        <meshStandardMaterial
-          color="#FFBB77"
-          roughness={0.4}
-          metalness={0.05}
-          transparent
-          opacity={0.88}
-        />
+        <meshStandardMaterial color="#e3bca5" roughness={0.6} />
       </mesh>
 
       {/* Finger tops (knuckle row) */}
       {[-9, -3, 3, 9].map((x, i) => (
         <mesh key={i} position={[x, 13, -6]}>
           <boxGeometry args={[5.5, 6, 14]} />
-          <meshStandardMaterial color="#FFCC88" roughness={0.45} transparent opacity={0.82} />
+          <meshStandardMaterial color="#d2a68d" roughness={0.6} />
         </mesh>
       ))}
 
       {/* Thumb */}
       <mesh position={[dir * -16, 0, 8]} rotation={[0, dir * 0.4, 0]}>
         <boxGeometry args={[10, 16, 10]} />
-        <meshStandardMaterial color="#FFAA66" roughness={0.4} transparent opacity={0.8} />
+        <meshStandardMaterial color="#d2a68d" roughness={0.6} />
       </mesh>
 
       {/* Wrist */}
       <mesh position={[0, -16, 0]}>
         <cylinderGeometry args={[13, 15, 14, 12]} />
-        <meshStandardMaterial color="#FFCC88" roughness={0.5} transparent opacity={0.8} />
+        <meshStandardMaterial color="#e3bca5" roughness={0.6} />
       </mesh>
 
       {/* Glow */}

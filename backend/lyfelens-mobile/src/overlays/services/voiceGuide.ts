@@ -63,73 +63,124 @@ const VOICE_SCRIPTS: Record<string, VoiceStep[]> = {
         { text: "Step 3. Keep checking their breathing. If they stop breathing, start CPR.", delay: 6000 },
         { text: "Stay with them and keep them warm until help arrives.", delay: 5000 },
     ],
+    MINOR_CUT: [
+        { text: "This is a minor cut. Bleeding is minimal.", delay: 0 },
+        { text: "Step 1. Wash your hands before touching the wound.", delay: 4000 },
+        { text: "Step 2. Gently clean the wound with cool tap water.", delay: 5000 },
+        { text: "Step 3. Apply a clean sterile bandage or plaster.", delay: 5000 },
+    ],
+    MAJOR_CUT: [
+        { text: "This is a major cut. The wound edges are separated.", delay: 0 },
+        { text: "Step 1. Do not wash the wound. Apply a clean dressing or cloth directly over it.", delay: 6000 },
+        { text: "Step 2. Press firmly to control bleeding.", delay: 5000 },
+        { text: "Step 3. Keep the cloth in place and seek professional medical stitches.", delay: 6000 },
+    ],
+    MINOR_BLEEDING: [
+        { text: "There is some bleeding, but it is slow.", delay: 0 },
+        { text: "Step 1. Apply gentle continuous pressure with a clean cloth.", delay: 5000 },
+        { text: "Step 2. Keep the area elevated if possible to slow blood flow.", delay: 5000 },
+    ],
+    SEVERE_BLEEDING: [
+        { text: "Warning. Severe bleeding detected. You must act immediately.", delay: 0 },
+        { text: "Step 1. Find a clean cloth and push down hard directly on the wound.", delay: 6000 },
+        { text: "Step 2. Keep constant, heavy pressure without letting up to check.", delay: 6000 },
+        { text: "Step 3. If blood soaks through, add another cloth on top. Do not remove the first one.", delay: 7000 },
+        { text: "Call an ambulance. Keep pushing hard.", delay: 5000 },
+    ],
+    POISONING: [
+        { text: "Warning. Possible poisoning or chemical exposure detected.", delay: 0 },
+        { text: "Step 1. Ensure the scene is safe for you. Do not touch chemicals with bare hands.", delay: 6000 },
+        { text: "Step 2. Find the poison container or pills if possible so you can tell the medics.", delay: 6000 },
+        { text: "Step 3. Do not induce vomiting unless told to do so by Poison Control.", delay: 6000 },
+        { text: "Call 112 or local emergency services immediately.", delay: 5000 },
+    ],
 };
 
 let currentCondition: string | null = null;
-let timeouts: ReturnType<typeof setTimeout>[] = [];
-let currentStep = 0;
+let currentSteps: string[] = [];
+let currentStepIndex = 0; // 0-based internal
 let stepCallback: ((step: number, total: number) => void) | null = null;
 
+// Kept for backwards compatibility
 export const startVoiceGuide = (
     condition: string,
     onStepChange?: (step: number, total: number) => void
 ) => {
-    // Fallback to static scripts if dynamic fetch isn't used
-    const steps = VOICE_SCRIPTS[condition]?.map(s => s.text) || ["Emergency condition active. Keep calm."];
-    startDynamicVoiceGuide(condition, steps, onStepChange);
+    const steps = VOICE_SCRIPTS[condition]?.map(s => s.text) || ["Emergency active."];
+    initDynamicVoiceGuide(condition, steps, onStepChange);
 };
 
-export const startDynamicVoiceGuide = (
+export const initDynamicVoiceGuide = (
     conditionId: string,
     steps: string[],
     onStepChange?: (step: number, total: number) => void
 ) => {
-    if (conditionId === currentCondition) return;
-
+    console.log(`[VoiceGuide] Init for ${conditionId} with ${steps.length} steps`);
+    
     stopVoiceGuide();
     currentCondition = conditionId;
-    currentStep = 0;
+    currentSteps = steps;
+    currentStepIndex = 0;
     stepCallback = onStepChange || null;
 
     if (!steps || steps.length === 0) return;
 
-    let cumulativeDelay = 0;
+    playCurrentStep();
+};
 
-    steps.forEach((text, index) => {
-        // Calculate dynamic delay based on word count (roughly 300ms per word + 2000ms pause)
-        const wordCount = text.split(' ').length;
-        const delay = index === 0 ? 0 : (wordCount * 300) + 2000;
-        
-        cumulativeDelay += index === 0 ? 0 : delay;
+const playCurrentStep = () => {
+    if (currentStepIndex < 0 || currentStepIndex >= currentSteps.length) return;
+    
+    const text = currentSteps[currentStepIndex];
+    if (stepCallback) stepCallback(currentStepIndex + 1, currentSteps.length);
 
-        const timeout = setTimeout(() => {
-            currentStep = index + 1;
-            if (stepCallback) stepCallback(currentStep, steps.length);
-
-            Speech.speak(text, {
-                language: 'en-US',
-                pitch: 1.0,
-                rate: 0.85, 
-            });
-        }, cumulativeDelay);
-
-        timeouts.push(timeout);
+    Speech.stop();
+    Speech.speak(text, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 1.25, // INCREASED SPEED FOR URGENCY
+        onDone: () => {
+            // Auto advance after a brief pause
+            if (currentStepIndex < currentSteps.length - 1) {
+                setTimeout(() => nextStep(), 800); // reduced pause between steps
+            } else {
+                setTimeout(() => {
+                    Speech.speak("Emergency sequence complete. Keep the patient stable and wait for medical professionals.", { rate: 1.15 });
+                }, 2000);
+            }
+        }
     });
+};
+
+export const nextStep = () => {
+    if (currentStepIndex < currentSteps.length - 1) {
+        currentStepIndex++;
+        playCurrentStep();
+    }
+};
+
+export const prevStep = () => {
+    if (currentStepIndex > 0) {
+        currentStepIndex--;
+        playCurrentStep();
+    }
+};
+
+export const repeatStep = () => {
+    playCurrentStep();
 };
 
 export const stopVoiceGuide = () => {
     Speech.stop();
-    timeouts.forEach(clearTimeout);
-    timeouts = [];
     currentCondition = null;
-    currentStep = 0;
+    currentSteps = [];
+    currentStepIndex = 0;
     stepCallback = null;
 };
 
-export const getCurrentStep = () => currentStep;
+export const getCurrentStep = () => currentStepIndex + 1;
 
 export const getStepText = (condition: string, step: number): string => {
-    // Kept for backwards compatibility, though Groq text will be managed in component state
     const steps = VOICE_SCRIPTS[condition];
     if (!steps || step <= 0) return '';
     return steps[Math.min(step - 1, steps.length - 1)]?.text || '';

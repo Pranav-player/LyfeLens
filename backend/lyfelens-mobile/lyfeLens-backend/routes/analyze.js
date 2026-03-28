@@ -65,10 +65,10 @@ if (isModelAvailable()) {
 }
 
 router.post('/', async (req, res) => {
-    const { sessionId, imageBase64, audioContext, lat, lng } = req.body
+    const { sessionId, imageBase64, audioContext, lat, lng, activeCondition } = req.body
 
     try {
-        // ─── STAGE 1: MoveNet (Pose Detection — behavior-based) ───
+        // ─── STAGE 1: MoveNet (Pose Detection & 3D anchor alignment — Always runs!) ───
         let keypoints = []
         let moveNetScene = null
         let hasPerson = false
@@ -78,6 +78,18 @@ router.post('/', async (req, res) => {
             keypoints = mlResult.keypoints
             moveNetScene = mlResult.scene
             hasPerson = mlResult.hasPerson
+
+            // If we are just tracking an active emergency, return immediately to save 3-4s latency!
+            if (activeCondition && activeCondition !== 'NONE') {
+                return res.json({
+                    condition_code: activeCondition,
+                    confidence: 99,
+                    keypoints: keypoints,
+                    hasPerson: hasPerson,
+                    source: 'tracking_cache',
+                    overlay_anchor: getAnchor(activeCondition, keypoints, hasPerson)
+                });
+            }
 
             if (moveNetScene) {
                 console.log(`[Stage 1 - MoveNet] Pose: ${moveNetScene}`)

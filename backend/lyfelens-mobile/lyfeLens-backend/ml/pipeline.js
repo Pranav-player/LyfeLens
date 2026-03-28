@@ -17,29 +17,64 @@ const addSyntheticKeypoints = (kps) => {
     const leftHip = get('left_hip')
     const rightHip = get('right_hip')
 
-    // Chest midpoint (average of both shoulders)
+    // Chest midpoint
+    let shoulderMidY = 0;
     if (leftShoulder && rightShoulder) {
+        shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
         kps.push({
             name: 'chest_midpoint',
             x: (leftShoulder.x + rightShoulder.x) / 2,
-            y: (leftShoulder.y + rightShoulder.y) / 2,
+            y: shoulderMidY,
             score: Math.min(leftShoulder.score, rightShoulder.score),
             valid: leftShoulder.valid && rightShoulder.valid
         })
     }
 
-    // Hip midpoint (average of both hips)
+    // Hip midpoint
+    let hipMidY = 0;
     if (leftHip && rightHip) {
+        hipMidY = (leftHip.y + rightHip.y) / 2;
         kps.push({
             name: 'hip_midpoint',
             x: (leftHip.x + rightHip.x) / 2,
-            y: (leftHip.y + rightHip.y) / 2,
+            y: hipMidY,
             score: Math.min(leftHip.score, rightHip.score),
             valid: leftHip.valid && rightHip.valid
         })
     }
 
-    return kps
+    // NEW CPR COACH LOGIC: Exact Sternum Calculation
+    if (leftShoulder && rightShoulder && leftHip && rightHip) {
+        kps.push({
+            name: 'sternum',
+            x: (leftShoulder.x + rightShoulder.x) / 2,
+            y: shoulderMidY + 0.25 * (hipMidY - shoulderMidY),
+            score: Math.min(leftShoulder.score, rightShoulder.score, leftHip.score, rightHip.score),
+            valid: true
+        })
+    }
+
+    // Rescuer Arm Angle (Calculate Angle: Shoulder -> Elbow -> Wrist)
+    let armsBent = false;
+    let armAngle = 180;
+    const wr = get('right_wrist');
+    const el = get('right_elbow');
+    const sh = get('right_shoulder');
+    
+    if (wr && el && sh && wr.valid && el.valid && sh.valid) {
+        // Dot product to get angle
+        const A = Math.sqrt(Math.pow(wr.x - el.x, 2) + Math.pow(wr.y - el.y, 2));
+        const B = Math.sqrt(Math.pow(el.x - sh.x, 2) + Math.pow(el.y - sh.y, 2));
+        const C = Math.sqrt(Math.pow(wr.x - sh.x, 2) + Math.pow(wr.y - sh.y, 2));
+        
+        if (A > 0 && B > 0) {
+            armAngle = Math.acos((A * A + B * B - C * C) / (2 * A * B)) * (180 / Math.PI);
+            // Flag bent arms if angle is < 155 (giving 5 degrees leniency from 160)
+            if (armAngle < 155) armsBent = true;
+        }
+    }
+
+    return { kps, armsBent }
 }
 
 const processFrame = async (imageBase64) => {
@@ -60,14 +95,15 @@ const processFrame = async (imageBase64) => {
         const normalized = normalizeKeypoints(cleanRaw, imgWidth, imgHeight)
         const filtered = filterLowConfidence(normalized)
         const smoothed = smooth(filtered)
-        const withSynthetic = addSyntheticKeypoints(smoothed)
+        const { kps: withSynthetic, armsBent } = addSyntheticKeypoints(smoothed)
 
         const scene = classifyFromPose(smoothed)
 
         return {
             scene,       // 'CHOKING', 'SEIZURE', 'CARDIAC_ARREST', or null
-            keypoints: withSynthetic,  // All 17 MoveNet + 2 synthetic keypoints
-            hasPerson: true
+            keypoints: withSynthetic,  // All 17 MoveNet + 3 synthetic keypoints (including sternum)
+            hasPerson: true,
+            rescuerArmsBent: armsBent
         }
     } catch (err) {
         console.log('[MoveNet Pipeline] Error:', err.message)

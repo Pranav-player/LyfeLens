@@ -63,35 +63,35 @@ function PressHand({ pressY }: { pressY: number }) {
       {/* Palm */}
       <mesh>
         <boxGeometry args={[52, 12, 32]} />
-        <meshStandardMaterial color="#FFAA88" roughness={0.4} transparent opacity={0.85} />
+        <meshStandardMaterial color="#e3bca5" roughness={0.6} />
       </mesh>
 
       {/* 4 Fingers */}
       {[-18, -6, 6, 18].map((x, i) => (
         <mesh key={i} position={[x, 0, -23]}>
           <cylinderGeometry args={[4, 3.5, 16, 8]} />
-          <meshStandardMaterial color="#FF9977" roughness={0.45} transparent opacity={0.8} />
+          <meshStandardMaterial color="#d2a68d" roughness={0.6} />
         </mesh>
       ))}
 
       {/* Thumb */}
       <mesh position={[30, 0, -8]} rotation={[0, 0, Math.PI / 4]}>
         <cylinderGeometry args={[4, 3.5, 13, 8]} />
-        <meshStandardMaterial color="#FF9977" roughness={0.45} transparent opacity={0.8} />
+        <meshStandardMaterial color="#d2a68d" roughness={0.6} />
       </mesh>
 
       {/* Knuckle bumps */}
       {[-18, -6, 6, 18].map((x, i) => (
         <mesh key={i} position={[x, 7, -8]}>
           <sphereGeometry args={[5, 8, 8]} />
-          <meshStandardMaterial color="#FFBB99" roughness={0.35} transparent opacity={0.7} />
+          <meshStandardMaterial color="#e3bca5" roughness={0.5} />
         </mesh>
       ))}
 
-      {/* Shadow cast by hand */}
+      {/* Shadow cast by hand on bandage */}
       <mesh position={[0, -16, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1.8, 1, 1]}>
         <circleGeometry args={[22, 32]} />
-        <meshBasicMaterial color="#CC6644" transparent opacity={0.12} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.3} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );

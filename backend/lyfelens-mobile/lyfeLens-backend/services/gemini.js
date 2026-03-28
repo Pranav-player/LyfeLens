@@ -29,16 +29,44 @@ try {
 }
 
 const SYSTEM_PROMPT = `You are a medical emergency detection AI for a first-aid AR app called LyfeLens.
-Look at the image very carefully and return ONLY a raw JSON object.
-No markdown, no code blocks, no explanation, no extra text.
+Look at the image very carefully and return ONLY a raw JSON object. No markdown, no extra text.
 
-If you see a clear medical emergency, return:
-{"condition": "CARDIAC_ARREST | BLEEDING | FRACTURE | UNCONSCIOUS_BREATHING | BURNS | CHOKING | SEIZURE | STROKE", "confidence": 0-100, "body_part_detected": "chest | left_arm | right_arm | left_leg | right_leg | head | full_body"}
+You MUST detect these exact classes:
+1. "minor_cut": Small superficial break in skin, < 2-3 cm, very shallow depth, edges mostly closed, minimal redness, bleeding slow or absent. Ex: paper cuts, small knife scratches, abrasions.
+2. "major_cut": Large or deep laceration, > 3-5 cm, skin edges separated, exposing fat/muscle tissue, significant redness/swelling, active bleeding.
+3. "minor_bleeding": Slow bleeding, small droplets or slight oozing, localized blood, no continuous flow.
+4. "severe_bleeding": Continuous/heavy blood flow, spreading quickly, pooling, rapid dripping, large area.
+5. "poisoning": Look for scattered pills, open chemical bottles, foaming at the mouth, or toxic context clues.
+6. "fracture": Look for unnatural angulation/deformity of a limb, swelling, bruising, skin tenting, or exposed bone.
+7. "stroke": Look for facial asymmetry (one side of face or lip drooping), uneven physical posture, paralyzed arm.
+8. "choking": Look for hands violently clutching the throat (Universal Choking Sign), flushed/cyanotic face, panicked expression.
+9. "seizure": Look for spasming or rigid awkward body posture on the ground, clenched jaw, foaming, or rigid extension of limbs.
+10. "unconscious_breathing": Person lying down lying still with eyes closed, unresponsive but NOT dead (look for subtle chest movement or recovery position).
+11. "cardiac_arrest": Unconscious, flat on back, NO signs of breathing, entirely lifeless. DO NOT OVERPREDICT this unless clearly lifeless.
+12. "burns": Scalded skin, blistering, charring, severe redness from heat/fire.
+13. "normal_skin": No injury.
 
-If the scene looks NORMAL, return:
-{"condition": "NONE", "confidence": 99, "body_part_detected": "none"}
+Analyze Wound Features, Blood Features, Orthopedic Features (angulation), and Motion/Context.
 
-Do NOT default to CARDIAC_ARREST unless you clearly see an unconscious person needing CPR.`
+Return exactly this JSON format if ANY emergency is found:
+{
+  "injury_detected": true,
+  "injury_type": "<one of the exact classes above>",
+  "confidence": <0.0-1.0 float>,
+  "wound_size_estimate": "<small|medium|large|none>",
+  "blood_flow": "<absent|slow|oozing|continuous|heavy|none>",
+  "body_part_detected": "<chest|left_arm|right_arm|left_leg|right_leg|head|full_body>"
+}
+
+If the scene looks completely normal or there is no emergency, return:
+{
+  "injury_detected": false,
+  "injury_type": "none",
+  "confidence": 0.99,
+  "wound_size_estimate": "none",
+  "blood_flow": "none",
+  "body_part_detected": "none"
+}`
 
 // ─── Groq (Llama 3.2 Vision) ───
 const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
@@ -47,7 +75,7 @@ const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
     if (audioContext) context += `\nAudio: ${audioContext}`
 
     const response = await client.chat.completions.create({
-        model: 'llama-3.2-90b-vision-preview',
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         messages: [
             {
                 role: 'user',
@@ -111,19 +139,26 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
 
         const parsed = JSON.parse(match[0])
 
-        console.log(`[AI] Detected: ${parsed.condition} (confidence: ${parsed.confidence}%)`)
+        const injuryType = parsed.injury_type ? parsed.injury_type.toUpperCase() : 'NONE';
+        const isEmergency = parsed.injury_detected && injuryType !== 'NONE' && injuryType !== 'NORMAL_SKIN';
 
-        if (parsed.condition === 'NONE' || parsed.condition === 'CLEAR') {
+        console.log(`[AI] Deep Medical Scan: ${injuryType} (confidence: ${parsed.confidence}%)`)
+        if (parsed.wound_size_estimate) console.log(`[AI] -> Wound: ${parsed.wound_size_estimate}, Blood: ${parsed.blood_flow}`)
+
+        if (!isEmergency) {
             return { condition_code: 'NONE', confidence: parsed.confidence || 99 }
         }
 
-        const scenarioData = scenarios[parsed.condition] || scenarios['CARDIAC_ARREST']
-
+        // We bypass local scenarioData here because the new deep forensic classes
+        // (MINOR_CUT, SEVERE_BLEEDING) don't exist in the legacy scenarios json.
         return {
-            ...scenarioData,
-            condition_code: parsed.condition,
-            confidence: parsed.confidence || 90,
-            body_part_detected: parsed.body_part_detected || 'chest'
+            condition_code: injuryType,
+            confidence: (parsed.confidence * 100) || 90, // AI returns 0.0-1.0
+            body_part_detected: parsed.body_part_detected || 'none',
+            forensics: {
+                wound_size: parsed.wound_size_estimate,
+                blood_flow: parsed.blood_flow
+            }
         }
     } catch (e) {
         console.log('[AI] Error:', e.message)

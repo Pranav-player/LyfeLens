@@ -120,6 +120,55 @@ const CONDITION_META: Record<
       'Keep them warm',
     ],
   },
+  MINOR_CUT: {
+    label: 'MINOR CUT',
+    icon: '🩹',
+    color: '#228844',
+    precautions: [
+      'Wash hands before touching wound',
+      'Clean wound to prevent infection',
+      'Apply clean sterile bandage'
+    ],
+  },
+  MAJOR_CUT: {
+    label: 'MAJOR CUT',
+    icon: '🩸',
+    color: '#CC3344',
+    precautions: [
+      'Do NOT wash the wound',
+      'Apply direct, heavy pressure immediately',
+      'Elevate the injured area'
+    ],
+  },
+  MINOR_BLEEDING: {
+    label: 'MINOR BLEEDING',
+    icon: '🩹',
+    color: '#CC7700',
+    precautions: [
+      'Elevate the wound',
+      'Use a clean cloth to apply pressure'
+    ],
+  },
+  SEVERE_BLEEDING: {
+    label: 'SEVERE BLEEDING',
+    icon: '🚨',
+    color: '#CC3344',
+    precautions: [
+      'Apply MAX pressure immediately',
+      'Do NOT remove soaked cloth — add more on top',
+      'Elevate the wound high above the heart'
+    ],
+  },
+  POISONING: {
+    label: 'POSSIBLE POISONING',
+    icon: '🧪',
+    color: '#8855AA',
+    precautions: [
+      'Do NOT induce vomiting',
+      'Try to identify the exact substance',
+      'Keep the airway clear'
+    ],
+  },
 };
 
 type HoloGuideProps = {

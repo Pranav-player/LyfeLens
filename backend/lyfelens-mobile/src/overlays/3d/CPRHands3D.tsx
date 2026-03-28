@@ -22,21 +22,15 @@ function Hand3D({
 }) {
   const mat = (
     <meshStandardMaterial
-      color={color}
-      transparent
-      opacity={opacity}
-      roughness={0.3}
-      metalness={0.1}
+      color={'#e3bca5'}
+      roughness={0.6}
     />
   );
-  const fingerColor = '#3AA3E8';
+  const fingerColor = '#d2a68d';
   const fingerMat = (
     <meshStandardMaterial
       color={fingerColor}
-      transparent
-      opacity={opacity * 0.9}
-      roughness={0.4}
-      metalness={0.05}
+      roughness={0.6}
     />
   );
 
@@ -155,21 +149,34 @@ export default function CPRHands3D({ worldX, worldY }: CPRHands3DProps) {
   const bottomHandRef = useRef<THREE.Group>(null);
   const ringPhaseRef = useRef(0);
 
-  // We expose pressT so child components can read the current animation phase
   const pressTRef = useRef(0);
 
+  // EMA physics state for smooth AR tracking
+  const targetX = useRef(worldX);
+  const targetY = useRef(worldY);
+
   useFrame(({ clock }) => {
+    // 1. EMA Smoothing: 0.7 * prev + 0.3 * current
+    targetX.current = targetX.current * 0.7 + worldX * 0.3;
+    targetY.current = targetY.current * 0.7 + worldY * 0.3;
+
+    if (groupRef.current) {
+      groupRef.current.position.x = targetX.current;
+      groupRef.current.position.y = targetY.current;
+    }
+
+    // 2. 100-120 BPM simulated compression bounce
     const t = clock.getElapsedTime();
-    // 100 BPM = 1.667 beats/sec
-    const beat = (t * 1.667) % 1;
+    const beat = (t * 1.667) % 1; 
+    
     // Push: easeOut downward, Pull: easeIn upward
     const pressT =
       beat < 0.4
-        ? Math.sin((beat / 0.4) * Math.PI * 0.5) // push
-        : Math.cos(((beat - 0.4) / 0.6) * Math.PI * 0.5); // release
+        ? Math.sin((beat / 0.4) * Math.PI * 0.5) 
+        : Math.cos(((beat - 0.4) / 0.6) * Math.PI * 0.5); 
     pressTRef.current = pressT;
 
-    const pushY = -pressT * 28; // max 28 units down
+    const pushY = -pressT * 28; // max 28 units deep
 
     if (topHandRef.current) {
       topHandRef.current.position.y = pushY;
@@ -185,6 +192,7 @@ export default function CPRHands3D({ worldX, worldY }: CPRHands3DProps) {
   return (
     <group
       ref={groupRef}
+      // Initial mount position, useFrame takes over after
       position={[worldX, worldY, 0]}
     >
       {/* === LIGHTS === */}

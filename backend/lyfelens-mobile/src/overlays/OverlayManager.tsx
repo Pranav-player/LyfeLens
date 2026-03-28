@@ -20,34 +20,53 @@ const kp = (keypoints: Keypoint[], name: string, fallback = { x: 0.5, y: 0.42 })
     (keypoints as any[]).find((k: any) => k.name === name) || fallback
 
 export default function OverlayManager({ overlayType, keypoints }: Props) {
-    // Conditions with full 3D overlays — SVG layer is hidden, only 3D renders
-    const hasFull3D = ['CARDIAC_ARREST', 'BURNS', 'BLEEDING', 'CHOKING'].includes(overlayType)
+    // Always try 3D first AND show SVG overlays as backup
+    // If 3D Canvas works, the SVG sits underneath (still visible around edges)
+    // If 3D Canvas crashes (Android), the SVG provides the full AR experience
+
+    const renderSVG = () => {
+        switch (overlayType) {
+            case 'CARDIAC_ARREST':
+                return <CPROverlay keypoint={kp(keypoints, 'chest_midpoint')} />
+
+            case 'BLEEDING':
+            case 'MINOR_CUT':
+            case 'MAJOR_CUT':
+            case 'MINOR_BLEEDING':
+            case 'SEVERE_BLEEDING':
+                return <BleedingOverlay keypoint={kp(keypoints, 'left_wrist')} />
+
+            case 'BURNS':
+                return <BurnsOverlay keypoint={kp(keypoints, 'left_wrist')} />
+
+            case 'CHOKING':
+                return <HeimlichOverlay keypoint={kp(keypoints, 'hip_midpoint', { x: 0.5, y: 0.65 })} />
+
+            case 'FRACTURE':
+                return <FractureOverlay keypoint={kp(keypoints, 'left_elbow')} />
+
+            case 'UNCONSCIOUS_BREATHING':
+                return <RecoveryOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
+
+            case 'SEIZURE':
+            case 'POISONING':
+                return <SeizureOverlay keypoint={kp(keypoints, 'nose', { x: 0.5, y: 0.22 })} />
+
+            case 'STROKE':
+                return <StrokeOverlay keypoint={kp(keypoints, 'nose', { x: 0.5, y: 0.22 })} />
+
+            default:
+                return null
+        }
+    }
 
     return (
         <>
-            {/* ── 3D OVERLAY (transparent canvas, pixel-perfect anchoring) ── */}
+            {/* SVG 2D Overlay (always rendered — guaranteed to work on Android) */}
+            {renderSVG()}
+
+            {/* 3D Overlay on top (has error boundary — if GL fails, it returns null) */}
             <HoloScene3D overlayType={overlayType} keypoints={keypoints as any} />
-
-            {/* ── SVG 2D OVERLAY for conditions without 3D yet ── */}
-            {!hasFull3D && (() => {
-                switch (overlayType) {
-                    case 'FRACTURE':
-                        return <FractureOverlay keypoint={kp(keypoints, 'left_elbow')} />
-
-                    case 'UNCONSCIOUS_BREATHING':
-                        return <RecoveryOverlay keypoint={kp(keypoints, 'hip_midpoint')} />
-
-                    case 'SEIZURE':
-                        // Use NOSE keypoint so the safety zone appears near the person's head
-                        return <SeizureOverlay keypoint={kp(keypoints, 'nose', { x: 0.5, y: 0.22 })} />
-
-                    case 'STROKE':
-                        return <StrokeOverlay keypoint={kp(keypoints, 'nose', { x: 0.5, y: 0.22 })} />
-
-                    default:
-                        return null
-                }
-            })()}
         </>
     )
 }
