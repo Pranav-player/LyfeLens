@@ -131,7 +131,28 @@ router.post('/', async (req, res) => {
                     console.log('[Groq/KP] Error:', e.message)
                 }
 
-                // Person confirmed but no emergency detected
+                // ─── TIER 3: Partial body? → Groq Vision for injury ───────
+                // Full body with a clear pose: typically 12+ well-distributed keypoints.
+                // Partial body (close-up arm/hand with burn or cut): fewer keypoints.
+                // Threshold at 10 — below that we're likely looking at a limb, not a full person.
+                const PARTIAL_BODY_THRESHOLD = 10
+                const isPartialBody = mv.keypoints.length < PARTIAL_BODY_THRESHOLD
+                if (isPartialBody && imageBase64) {
+                    console.log(`[Path A→Vision] Partial body (${mv.keypoints.length} kps < ${PARTIAL_BODY_THRESHOLD}) → Groq Vision for injuries`)
+                    try {
+                        const visionResult = await analyzeScene(imageBase64, audioContext || '', null)
+                        if (visionResult && visionResult.condition_code && visionResult.condition_code !== 'NONE') {
+                            console.log(`[Groq/Vision] ✅ ${visionResult.condition_code} on partial body — total ${Date.now() - t_start}ms`)
+                            const response = buildResponse(visionResult.condition_code, visionResult.confidence || 90, mv.keypoints, true, 'groq-vision-partial')
+                            saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
+                            return res.json(response)
+                        }
+                    } catch (e) {
+                        console.log('[Groq/Vision/Partial] Error:', e.message)
+                    }
+                }
+
+                // Full body present, no emergency of any kind
                 return res.json({ condition_code: 'NONE', confidence: 95, keypoints: mv.keypoints, hasPerson: true, source: 'clear' })
             }
 
