@@ -429,6 +429,7 @@ export default function ARScreen() {
         stepText={currentStepText || "Scanning environment for medical emergencies..."}
         currentStep={Math.max(1, voiceStep)}
         totalSteps={groqSteps.length || 5}
+        isLoadingInstructions={!!currentOverlay && groqSteps.length === 0}
       />
 
       {/* === BIG BOLD INSTRUCTION OVERLAY === */}

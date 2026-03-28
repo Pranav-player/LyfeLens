@@ -213,6 +213,7 @@ type HoloGuideProps = {
   stepText: string;
   currentStep?: number;
   totalSteps?: number;
+  isLoadingInstructions?: boolean;
 };
 
 export default function HoloGuideUI({
@@ -220,6 +221,7 @@ export default function HoloGuideUI({
   stepText,
   currentStep = 1,
   totalSteps = 5,
+  isLoadingInstructions = false,
 }: HoloGuideProps) {
   const router = useRouter();
   const [precautionsVisible, setPrecautionsVisible] = useState(false);
@@ -245,6 +247,21 @@ export default function HoloGuideUI({
       useNativeDriver: true,
     }).start();
   }, [stepText]);
+
+  // Shimmer animation for Skeleton loading state
+  const shimmerAnim = React.useRef(new RNAnimated.Value(0.3)).current;
+  useEffect(() => {
+    if (isLoadingInstructions) {
+      RNAnimated.loop(
+        RNAnimated.sequence([
+          RNAnimated.timing(shimmerAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+          RNAnimated.timing(shimmerAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      shimmerAnim.stopAnimation();
+    }
+  }, [isLoadingInstructions, shimmerAnim]);
 
   const meta = condition ? CONDITION_META[condition] || CONDITION_META['CARDIAC_ARREST'] : null;
 
@@ -356,9 +373,17 @@ export default function HoloGuideUI({
           <Text style={[styles.instructionCondition, { color: meta?.color || '#0077CC' }]}>
             {meta?.icon} {meta?.label}
           </Text>
-          <Text style={styles.instructionBody} numberOfLines={3}>
-            {stepText || 'Follow the 3D hologram instructions.'}
-          </Text>
+          {isLoadingInstructions ? (
+            <View style={{ marginTop: 8, gap: 8 }}>
+              <RNAnimated.View style={[styles.skeletonLine, { opacity: shimmerAnim, width: '90%' }]} />
+              <RNAnimated.View style={[styles.skeletonLine, { opacity: shimmerAnim, width: '70%' }]} />
+              <RNAnimated.View style={[styles.skeletonLine, { opacity: shimmerAnim, width: '50%' }]} />
+            </View>
+          ) : (
+            <Text style={styles.instructionBody} numberOfLines={3}>
+              {stepText || 'Follow the 3D hologram instructions.'}
+            </Text>
+          )}
         </RNAnimated.View>
       </View>
 
@@ -627,6 +652,11 @@ const styles = StyleSheet.create({
   btnPressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
 
   // ─── Instruction banner ────────────────────────────────────
+  skeletonLine: {
+    height: 14,
+    backgroundColor: '#D1D9E6',
+    borderRadius: 6,
+  },
   instructionBanner: {
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderRadius: 22,
