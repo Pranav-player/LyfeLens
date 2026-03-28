@@ -57,17 +57,17 @@ function RealisticFist({ side, thrustT }: { side: 'left' | 'right'; thrustT: num
         <group key={`f${i}`} position={[x, 8, -10]}>
           {/* Proximal (curled forward) */}
           <mesh rotation={[1.2, 0, 0]}>
-            <capsuleGeometry args={[3.2 - i * 0.15, 10 + (1 - Math.abs(i - 1.5)) * 2, 6, 8]} />
+            <cylinderGeometry args={[3.2 - i * 0.15, 3.2 - i * 0.15, 10 + (1 - Math.abs(i - 1.5)) * 2, 8]} />
             <SkinMat color={SKIN.finger} />
           </mesh>
           {/* Middle (tucked under) */}
           <mesh position={[0, -5, -10]} rotation={[2.0, 0, 0]}>
-            <capsuleGeometry args={[2.8 - i * 0.1, 8, 6, 8]} />
+            <cylinderGeometry args={[2.8 - i * 0.1, 2.8 - i * 0.1, 8, 8]} />
             <SkinMat color={SKIN.finger} />
           </mesh>
           {/* Fingertip (curled into palm) */}
           <mesh position={[0, -2, -14]} rotation={[2.5, 0, 0]}>
-            <capsuleGeometry args={[2.4, 6, 6, 8]} />
+            <cylinderGeometry args={[2.4, 2.4, 6, 8]} />
             <SkinMat color={SKIN.finger} />
           </mesh>
         </group>
@@ -76,11 +76,11 @@ function RealisticFist({ side, thrustT }: { side: 'left' | 'right'; thrustT: num
       {/* === THUMB (wrapped over fingers) === */}
       <group position={[dir * -16, 4, -6]} rotation={[0.8, dir * 0.3, -dir * 0.4]}>
         <mesh>
-          <capsuleGeometry args={[4.5, 8, 6, 10]} />
+          <cylinderGeometry args={[4.5, 4.5, 8, 10]} />
           <SkinMat color={SKIN.palm} />
         </mesh>
         <mesh position={[0, -8, 0]} rotation={[0.5, 0, 0]}>
-          <capsuleGeometry args={[3.8, 7, 6, 10]} />
+          <cylinderGeometry args={[3.8, 3.8, 7, 10]} />
           <SkinMat color={SKIN.finger} />
         </mesh>
         {/* Thumbnail */}
@@ -92,13 +92,13 @@ function RealisticFist({ side, thrustT }: { side: 'left' | 'right'; thrustT: num
 
       {/* === WRIST === */}
       <mesh position={[0, 0, 16]}>
-        <capsuleGeometry args={[10, 10, 8, 10]} />
+        <cylinderGeometry args={[10, 10, 10, 10]} />
         <SkinMat color={SKIN.back} />
       </mesh>
 
       {/* === FOREARM === */}
       <mesh position={[dir * 8, 0, 32]} rotation={[0, -dir * 0.2, 0]}>
-        <capsuleGeometry args={[9, 22, 8, 10]} />
+        <cylinderGeometry args={[9, 9, 22, 10]} />
         <SkinMat color={SKIN.back} roughness={0.6} />
       </mesh>
 

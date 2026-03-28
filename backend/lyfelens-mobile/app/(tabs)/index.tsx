@@ -180,19 +180,26 @@ export default function ARScreen() {
         return;
       }
 
-      console.log(`[Frame ${frame}] Sending to backend...`);
+      console.log(`[Frame ${frame}] Sending...`);
+
+      // 8-second timeout to prevent hanging on network issues
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(`${BACKEND_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
-          sessionId: `live-session-${Date.now()}`,
+          sessionId: 'live',
           imageBase64: photo.base64,
           lat: 0,
           lng: 0,
-          activeCondition: isEmergencyActive.current ? currentOverlay : null
+          activeCondition: isEmergencyActive.current ? lastCondition.current : null
         })
       });
+
+      clearTimeout(timeout);
 
       const data = await response.json();
       console.log(`[Frame ${frame}] Backend response: ${data.condition_code} (${data.confidence}%) via ${data.source}`);

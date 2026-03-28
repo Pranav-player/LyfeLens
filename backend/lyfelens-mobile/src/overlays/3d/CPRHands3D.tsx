@@ -59,7 +59,7 @@ function Finger({
       {/* Proximal phalanx */}
       <group rotation={[curl[0], 0, 0]}>
         <mesh>
-          <capsuleGeometry args={[radius[0], length[0], 6, 12]} />
+          <cylinderGeometry args={[radius[0], radius[0], length[0], 12]} />
           <SkinMat color={SKIN.finger} />
         </mesh>
         {/* Knuckle joint */}
@@ -71,7 +71,7 @@ function Finger({
         {/* Middle phalanx */}
         <group position={[0, -length[0] - radius[0] * 0.4, 0]} rotation={[curl[1], 0, 0]}>
           <mesh>
-            <capsuleGeometry args={[radius[1], length[1], 6, 12]} />
+            <cylinderGeometry args={[radius[1], radius[1], length[1], 12]} />
             <SkinMat color={SKIN.finger} />
           </mesh>
           {/* Joint */}
@@ -83,7 +83,7 @@ function Finger({
           {/* Distal phalanx (fingertip) */}
           <group position={[0, -length[1] - radius[1] * 0.4, 0]} rotation={[curl[2], 0, 0]}>
             <mesh>
-              <capsuleGeometry args={[radius[2], length[2], 6, 12]} />
+              <cylinderGeometry args={[radius[2], radius[2], length[2], 12]} />
               <SkinMat color={SKIN.finger} />
             </mesh>
             {/* Fingernail */}
@@ -109,19 +109,19 @@ function Thumb({ position, rotation = [0, 0, 0] }: {
     <group position={position} rotation={rotation as any}>
       {/* Metacarpal */}
       <mesh>
-        <capsuleGeometry args={[4, 10, 6, 12]} />
+        <cylinderGeometry args={[4, 4, 10, 12]} />
         <SkinMat color={SKIN.palm} />
       </mesh>
       {/* Proximal */}
       <group position={[0, -12, 0]} rotation={[0.3, 0, 0]}>
         <mesh>
-          <capsuleGeometry args={[3.5, 9, 6, 12]} />
+          <cylinderGeometry args={[3.5, 3.5, 9, 12]} />
           <SkinMat color={SKIN.finger} />
         </mesh>
         {/* Distal */}
         <group position={[0, -10, 0]} rotation={[0.2, 0, 0]}>
           <mesh>
-            <capsuleGeometry args={[3, 7, 6, 12]} />
+            <cylinderGeometry args={[3, 3, 7, 12]} />
             <SkinMat color={SKIN.finger} />
           </mesh>
           {/* Thumbnail */}
@@ -173,13 +173,13 @@ function RealisticHand({
 
       {/* === WRIST === */}
       <mesh position={[0, 0, 22]}>
-        <capsuleGeometry args={[12, 14, 8, 12]} />
+        <cylinderGeometry args={[12, 12, 14, 12]} />
         <SkinMat color={SKIN.back} />
       </mesh>
 
       {/* === FOREARM stub === */}
       <mesh position={[0, 0, 38]} rotation={[0, 0, 0]}>
-        <capsuleGeometry args={[10, 20, 8, 12]} />
+        <cylinderGeometry args={[10, 10, 20, 12]} />
         <SkinMat color={SKIN.back} roughness={0.6} />
       </mesh>
 

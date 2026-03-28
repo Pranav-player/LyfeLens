@@ -193,18 +193,40 @@ const analyzeWithGemini = async (imageBase64, audioContext, moveNetHint) => {
     return result.response.text().trim()
 }
 
+// Rate limit cooldown: when Groq 429s, pause for 5 min
+let groqCooldownUntil = 0
+
 // ─── Main entry point ───
 const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) => {
     try {
         let text = ''
+        const now = Date.now()
 
-        if (useGroq && client) {
-            text = await analyzeWithGroq(imageBase64, audioContext, moveNetHint)
-            console.log('[Groq] Raw response:', text.substring(0, 100))
-        } else if (geminiModel) {
+        // Try Groq first (unless rate-limited)
+        if (useGroq && client && now > groqCooldownUntil) {
+            try {
+                text = await analyzeWithGroq(imageBase64, audioContext, moveNetHint)
+                console.log('[Groq] Response OK:', text.substring(0, 80))
+            } catch (groqErr) {
+                const msg = groqErr.message || ''
+                if (msg.includes('429') || msg.includes('rate_limit')) {
+                    console.log('[Groq] ⚠️ Rate limited — switching to Gemini for 5 min')
+                    groqCooldownUntil = now + 5 * 60 * 1000
+                    text = '' // force Gemini fallback below
+                } else {
+                    console.log('[Groq] Error:', msg.substring(0, 80))
+                    text = ''
+                }
+            }
+        }
+
+        // Fallback to Gemini
+        if (!text && geminiModel) {
             text = await analyzeWithGemini(imageBase64, audioContext, moveNetHint)
-            console.log('[Gemini] Raw response:', text.substring(0, 100))
-        } else {
+            console.log('[Gemini] Response OK:', text.substring(0, 80))
+        }
+
+        if (!text) {
             console.log('[AI] No AI provider available!')
             return { condition_code: 'NONE', confidence: 0 }
         }

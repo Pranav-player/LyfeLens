@@ -60,12 +60,12 @@ function PressingHand({ pressY }: { pressY: number }) {
           </mesh>
           {/* Finger curled down */}
           <mesh rotation={[0.6, 0, 0]}>
-            <capsuleGeometry args={[f.r, f.len, 6, 10]} />
+            <cylinderGeometry args={[f.r, f.r, f.len, 10]} />
             <SkinMat color={SKIN.finger} />
           </mesh>
           {/* Fingertip */}
           <mesh position={[0, -f.len * 0.6, -f.len * 0.35]} rotation={[1.0, 0, 0]}>
-            <capsuleGeometry args={[f.r * 0.85, f.len * 0.45, 6, 10]} />
+            <cylinderGeometry args={[f.r * 0.85, f.r * 0.85, f.len * 0.45, 10]} />
             <SkinMat color={SKIN.finger} />
           </mesh>
           {/* Nail */}
@@ -79,24 +79,24 @@ function PressingHand({ pressY }: { pressY: number }) {
       {/* Thumb wrapping around side */}
       <group position={[-26, 0, 0]} rotation={[0.2, 0.5, -0.5]}>
         <mesh>
-          <capsuleGeometry args={[4, 10, 6, 10]} />
+          <cylinderGeometry args={[4, 4, 10, 10]} />
           <SkinMat color={SKIN.palm} />
         </mesh>
         <mesh position={[0, -10, 0]} rotation={[0.3, 0, 0]}>
-          <capsuleGeometry args={[3.5, 8, 6, 10]} />
+          <cylinderGeometry args={[3.5, 3.5, 8, 10]} />
           <SkinMat color={SKIN.finger} />
         </mesh>
       </group>
 
       {/* Wrist */}
       <mesh position={[0, 0, 22]}>
-        <capsuleGeometry args={[12, 12, 8, 10]} />
+        <cylinderGeometry args={[12, 12, 12, 10]} />
         <SkinMat color={SKIN.back} />
       </mesh>
 
       {/* Forearm */}
       <mesh position={[0, 0, 38]}>
-        <capsuleGeometry args={[10, 18, 8, 10]} />
+        <cylinderGeometry args={[10, 10, 18, 10]} />
         <SkinMat color={SKIN.back} roughness={0.6} />
       </mesh>
 
