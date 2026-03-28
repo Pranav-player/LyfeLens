@@ -1,83 +1,71 @@
-import React, { useEffect } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
-import Svg, { Circle, Ellipse, Line, Rect, Text as SvgText, Polygon } from 'react-native-svg';
+import React, { useEffect, useState } from 'react';
+import { Dimensions, StyleSheet } from 'react-native';
+import Svg, { 
+  Circle, Ellipse, Line, Rect, Text as SvgText, 
+  Path, Defs, LinearGradient, Stop, RadialGradient, G 
+} from 'react-native-svg';
 import Animated, { 
-  useSharedValue, 
-  withRepeat, 
-  withSequence, 
-  withTiming, 
-  useAnimatedProps, 
-  Easing 
+  useSharedValue, withRepeat, withSequence, withTiming, 
+  useAnimatedProps, Easing 
 } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
-
 const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
-const AnimatedLine = Animated.createAnimatedComponent(Line);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedG = Animated.createAnimatedComponent(G);
 
 type Props = { keypoint: { x: number, y: number } };
 
 export default function CPROverlay({ keypoint }: Props) {
   const cx = keypoint.x * width;
   const cy = keypoint.y * height;
+  
+  const [compressionCount, setCompressionCount] = useState(0);
+  const phase = compressionCount < 30 ? 'COMPRESS' : 'BREATHE';
+  const BEAT = 300;
 
-  // 100 BPM = 600ms per beat (300ms down, 300ms up)
-  const BEAT_DURATION = 300;
-
-  // Hand pressing down animation
   const pushDepth = useSharedValue(0);
-  const shadowSquish = useSharedValue(1);
   const ringScale = useSharedValue(1);
   const ringOpacity = useSharedValue(1);
+  const glowPulse = useSharedValue(0.3);
 
   useEffect(() => {
-    // Rhythmic pressing inward
+    const interval = setInterval(() => {
+      setCompressionCount(c => c >= 32 ? 0 : c + 1);
+    }, 600);
+
     pushDepth.value = withRepeat(
       withSequence(
-        withTiming(20, { duration: BEAT_DURATION, easing: Easing.out(Easing.quad) }), // Push down
-        withTiming(0, { duration: BEAT_DURATION, easing: Easing.in(Easing.quad) })    // Release fully
-      ),
-      -1, false
+        withTiming(24, { duration: BEAT, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: BEAT, easing: Easing.in(Easing.quad) })
+      ), -1, false
     );
 
-    // Shadow squishes as hands press down
-    shadowSquish.value = withRepeat(
+    ringScale.value = withRepeat(withTiming(5, { duration: BEAT * 2 }), -1, false);
+    ringOpacity.value = withRepeat(withTiming(0, { duration: BEAT * 2 }), -1, false);
+    glowPulse.value = withRepeat(
       withSequence(
-        withTiming(1.5, { duration: BEAT_DURATION, easing: Easing.out(Easing.quad) }),
-        withTiming(1, { duration: BEAT_DURATION, easing: Easing.in(Easing.quad) })
-      ),
-      -1, false
+        withTiming(0.7, { duration: BEAT }),
+        withTiming(0.3, { duration: BEAT })
+      ), -1, false
     );
 
-    // Expanding shockwave ring showing 100 BPM rhythm
-    ringScale.value = withRepeat(
-      withTiming(4, { duration: BEAT_DURATION * 2 }),
-      -1, false
-    );
-    ringOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0, { duration: BEAT_DURATION * 2 })
-      ),
-      -1, false
-    );
+    return () => clearInterval(interval);
   }, []);
 
-  const handLeftProps = useAnimatedProps(() => ({
-    cy: cy + pushDepth.value, // moves down
-    rx: 28 + (pushDepth.value / 3), // gets slightly wider on press
+  // 3D-like hands pressing down
+  const rightHandProps = useAnimatedProps(() => ({
+    cy: cy - 5 + pushDepth.value,
   }));
-
-  const handRightProps = useAnimatedProps(() => ({
-    cy: cy + pushDepth.value,
-    rx: 28 + (pushDepth.value / 3),
+  const leftHandProps = useAnimatedProps(() => ({
+    cy: cy + 5 + pushDepth.value,
   }));
-
   const shadowProps = useAnimatedProps(() => ({
-    rx: 35 * shadowSquish.value,
-    ry: 15 * shadowSquish.value,
-    opacity: 1 / shadowSquish.value,
+    cy: cy + 25 + pushDepth.value * 0.3,
+    rx: 38 + pushDepth.value * 0.5,
+    ry: 12 + pushDepth.value * 0.3,
   }));
 
   const shockwaveProps = useAnimatedProps(() => ({
@@ -85,52 +73,139 @@ export default function CPROverlay({ keypoint }: Props) {
     opacity: ringOpacity.value,
   }));
 
-  // Bar indicating depth
-  const depthBarProps = useAnimatedProps(() => ({
-    height: pushDepth.value * 2.5, // visual amplification
-    y: cy - 20 - (pushDepth.value * 2.5),
+  const depthFillProps = useAnimatedProps(() => ({
+    height: pushDepth.value * 3.5,
+    y: cy - 35 - (pushDepth.value * 3.5),
+  }));
+
+  const glowProps = useAnimatedProps(() => ({
+    opacity: glowPulse.value,
   }));
 
   return (
     <Svg style={StyleSheet.absoluteFill}>
-       {/* Target zone indicator */}
-       <Circle cx={cx} cy={cy} r={65} stroke="#00FF88" strokeWidth={2} strokeDasharray="8 4" fill="rgba(0, 255, 136, 0.05)" />
-       
-       {/* Shockwave originating from chest */}
-       <AnimatedCircle cx={cx} cy={cy} stroke="#00FF88" strokeWidth={3} fill="none" animatedProps={shockwaveProps} />
+      <Defs>
+        {/* 3D hand gradient — skin tone with depth */}
+        <LinearGradient id="handGrad" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#00FFaa" stopOpacity="0.95" />
+          <Stop offset="0.5" stopColor="#00CC77" stopOpacity="0.9" />
+          <Stop offset="1" stopColor="#009955" stopOpacity="0.85" />
+        </LinearGradient>
+        
+        {/* Depth gauge gradient */}
+        <LinearGradient id="depthGrad" x1="0" y1="1" x2="0" y2="0">
+          <Stop offset="0" stopColor="#00FF88" stopOpacity="1" />
+          <Stop offset="0.5" stopColor="#00FFCC" stopOpacity="0.8" />
+          <Stop offset="1" stopColor="#44FFDD" stopOpacity="0.6" />
+        </LinearGradient>
 
-       {/* Depth gauge slider on the right */}
-       <Rect x={cx + 80} y={cy - 50} width={8} height={100} rx={4} fill="rgba(255, 255, 255, 0.2)" />
-       <Rect x={cx + 70} y={cy - 10} width={15} height={2} fill="#00FF88" />
-       <SvgText x={cx + 95} y={cy - 6} fill="#00FF88" fontSize={10} fontFamily="Courier">2" DEPTH</SvgText>
-       
-       {/* Animated fluid inside the gauge */}
-       <AnimatedRect x={cx + 80} width={8} rx={4} fill="#00FF88" animatedProps={depthBarProps} />
+        {/* Target zone glow */}
+        <RadialGradient id="targetGlow" cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor="#00FF88" stopOpacity="0.15" />
+          <Stop offset="0.7" stopColor="#00FF88" stopOpacity="0.05" />
+          <Stop offset="1" stopColor="#00FF88" stopOpacity="0" />
+        </RadialGradient>
 
-       {/* Bottom shadow base */}
-       <AnimatedEllipse cx={cx} cy={cy + 15} fill="rgba(0, 0, 0, 0.5)" animatedProps={shadowProps} />
+        {/* Glass panel */}
+        <LinearGradient id="glassPanel" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="rgba(255,255,255,0.15)" />
+          <Stop offset="1" stopColor="rgba(0,0,0,0.6)" />
+        </LinearGradient>
+      </Defs>
 
-       {/* Visual guides for locked elbows pointing downward */}
-       <Line x1={cx - 50} y1={cy - 120} x2={cx - 15} y2={cy} stroke="#00FF88" strokeWidth={2} strokeDasharray="5 5" opacity={0.6} />
-       <Line x1={cx + 50} y1={cy - 120} x2={cx + 15} y2={cy} stroke="#00FF88" strokeWidth={2} strokeDasharray="5 5" opacity={0.6} />
-       
-       {/* Top Hand (Right Hand) */}
-       <AnimatedEllipse cx={cx + 8} cy={cy} rx={28} ry={14} fill="rgba(0, 255, 136, 0.9)" stroke="#fff" strokeWidth={2} animatedProps={handRightProps} />
-       
-       {/* Bottom Hand (Left Hand) */}
-       <AnimatedEllipse cx={cx - 8} cy={cy} rx={28} ry={14} fill="rgba(0, 255, 136, 0.7)" stroke="#fff" strokeWidth={1.5} animatedProps={handLeftProps} />
-       
-       {/* Locked elbows text */}
-       <Rect x={cx - 60} y={cy - 140} width={120} height={22} rx={6} fill="rgba(0, 0, 0, 0.7)" stroke="#00FF88" strokeWidth={1} />
-       <SvgText x={cx} y={cy - 125} textAnchor="middle" fill="#00FF88" fontSize={12} fontWeight="bold" fontFamily="Courier">
-         LOCK ELBOWS
-       </SvgText>
+      {/* === HOLOGRAPHIC TARGET ZONE === */}
+      <AnimatedCircle cx={cx} cy={cy} r={100} fill="url(#targetGlow)" animatedProps={glowProps} />
+      
+      {/* Outer targeting ring — holographic */}
+      <Circle cx={cx} cy={cy} r={75} 
+        stroke="#00FF88" strokeWidth={1.5} strokeDasharray="12 4 4 4"
+        fill="none" opacity={0.6} />
+      <Circle cx={cx} cy={cy} r={55}
+        stroke="#00FFCC" strokeWidth={1} strokeDasharray="6 6"
+        fill="none" opacity={0.4} />
+      
+      {/* Crosshair — exact press point */}
+      <Line x1={cx - 15} y1={cy} x2={cx - 5} y2={cy} stroke="#00FF88" strokeWidth={2.5} />
+      <Line x1={cx + 5} y1={cy} x2={cx + 15} y2={cy} stroke="#00FF88" strokeWidth={2.5} />
+      <Line x1={cx} y1={cy - 15} x2={cx} y2={cy - 5} stroke="#00FF88" strokeWidth={2.5} />
+      <Line x1={cx} y1={cy + 5} x2={cx} y2={cy + 15} stroke="#00FF88" strokeWidth={2.5} />
+      <Circle cx={cx} cy={cy} r={3} fill="#00FF88" />
 
-       {/* Rate metronome counter */}
-       <Rect x={cx - 45} y={cy + 60} width={90} height={26} rx={8} fill="rgba(0, 0, 0, 0.8)" stroke="#00FF88" strokeWidth={1.5} />
-       <SvgText x={cx} y={cy + 77} textAnchor="middle" fill="#00FF88" fontSize={14} fontWeight="900" fontFamily="Courier">
-         100 BPM
-       </SvgText>
+      {/* Shockwave pulse */}
+      <AnimatedCircle cx={cx} cy={cy} stroke="#00FF88" strokeWidth={2.5} fill="none" animatedProps={shockwaveProps} />
+
+      {/* === ARM GUIDE LINES — locked elbows === */}
+      <Line x1={cx - 60} y1={cy - 160} x2={cx - 18} y2={cy - 10} 
+        stroke="#00FF88" strokeWidth={2.5} strokeDasharray="8 4" opacity={0.5} />
+      <Line x1={cx + 60} y1={cy - 160} x2={cx + 18} y2={cy - 10} 
+        stroke="#00FF88" strokeWidth={2.5} strokeDasharray="8 4" opacity={0.5} />
+      
+      {/* Elbow lock indicators */}
+      <Circle cx={cx - 38} cy={cy - 85} r={5} stroke="#00FF88" strokeWidth={1.5} fill="rgba(0,255,136,0.3)" />
+      <Circle cx={cx + 38} cy={cy - 85} r={5} stroke="#00FF88" strokeWidth={1.5} fill="rgba(0,255,136,0.3)" />
+
+      {/* === 3D HAND — shadow underneath === */}
+      <AnimatedEllipse cx={cx} fill="rgba(0,0,0,0.4)" animatedProps={shadowProps} />
+
+      {/* === 3D RIGHT HAND (top) — detailed with fingers === */}
+      {/* Palm */}
+      <AnimatedEllipse cx={cx + 5} rx={32} ry={16} 
+        fill="url(#handGrad)" stroke="#00FFCC" strokeWidth={2.5}
+        animatedProps={rightHandProps} />
+      {/* Finger bumps */}
+      <AnimatedEllipse cx={cx - 20} rx={6} ry={8}
+        fill="rgba(0,200,100,0.7)" animatedProps={rightHandProps} />
+      <AnimatedEllipse cx={cx - 8} rx={6} ry={9}
+        fill="rgba(0,200,100,0.7)" animatedProps={rightHandProps} />
+      <AnimatedEllipse cx={cx + 5} rx={6} ry={9}
+        fill="rgba(0,200,100,0.7)" animatedProps={rightHandProps} />
+      <AnimatedEllipse cx={cx + 18} rx={6} ry={8}
+        fill="rgba(0,200,100,0.7)" animatedProps={rightHandProps} />
+
+      {/* === 3D LEFT HAND (bottom) — interlocked === */}
+      <AnimatedEllipse cx={cx - 5} rx={30} ry={14}
+        fill="rgba(0,180,100,0.75)" stroke="#00CC88" strokeWidth={2}
+        animatedProps={leftHandProps} />
+
+      {/* Thumb wrapped around */}
+      <AnimatedEllipse cx={cx + 28} rx={8} ry={6}
+        fill="rgba(0,220,120,0.8)" stroke="#00CC88" strokeWidth={1}
+        animatedProps={leftHandProps} />
+
+      {/* === LOCK ELBOWS — glass panel === */}
+      <Rect x={cx - 58} y={cy - 180} width={116} height={28} rx={10} fill="rgba(0,0,0,0.75)" stroke="#00FF88" strokeWidth={1.5} />
+      <SvgText x={cx} y={cy - 162} textAnchor="middle" fill="#00FF88" fontSize={12} fontWeight="bold" fontFamily="Courier">
+        🔒 LOCK ELBOWS
+      </SvgText>
+
+      {/* === PRESS HERE — prominent === */}
+      <Rect x={cx - 55} y={cy + 35} width={110} height={26} rx={10} fill="rgba(0,255,136,0.95)" />
+      <SvgText x={cx} y={cy + 52} textAnchor="middle" fill="#000" fontSize={13} fontWeight="900" fontFamily="Courier">
+        ▼ PRESS HERE
+      </SvgText>
+
+      {/* === DEPTH GAUGE — 3D look === */}
+      <Rect x={cx + 90} y={cy - 70} width={10} height={140} rx={5} fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
+      {/* Optimal zone marker */}
+      <Rect x={cx + 85} y={cy - 35} width={20} height={2} fill="#00FF88" />
+      <SvgText x={cx + 115} y={cy - 30} fill="#00FF88" fontSize={8} fontFamily="Courier" fontWeight="bold">5cm</SvgText>
+      <SvgText x={cx + 115} y={cy - 20} fill="#00FF88" fontSize={7} fontFamily="Courier">OPTIMAL</SvgText>
+      {/* Too shallow marker */}
+      <Rect x={cx + 85} y={cy + 30} width={20} height={2} fill="#FF4444" />
+      <SvgText x={cx + 115} y={cy + 34} fill="#FF4444" fontSize={7} fontFamily="Courier">SHALLOW</SvgText>
+      {/* Animated fill */}
+      <AnimatedRect x={cx + 90} width={10} rx={5} fill="url(#depthGrad)" animatedProps={depthFillProps} />
+
+      {/* === BPM + PHASE — glass panel === */}
+      <Rect x={cx - 72} y={cy + 68} width={144} height={42} rx={12} 
+        fill="rgba(0,0,0,0.8)" stroke={phase === 'COMPRESS' ? '#00FF88' : '#44AAFF'} strokeWidth={1.5} />
+      <SvgText x={cx} y={cy + 85} textAnchor="middle" 
+        fill={phase === 'COMPRESS' ? '#00FF88' : '#44AAFF'} fontSize={14} fontWeight="900" fontFamily="Courier">
+        {phase === 'COMPRESS' ? `⬇ PUSH ${Math.min(compressionCount, 30)}/30` : '💨 2 BREATHS'}
+      </SvgText>
+      <SvgText x={cx} y={cy + 103} textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize={9} fontFamily="Courier">
+        ♥ 100 BPM RHYTHM
+      </SvgText>
     </Svg>
   );
 }

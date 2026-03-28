@@ -1,61 +1,56 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Speech from 'expo-speech';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Dimensions, StyleSheet, View, Text } from 'react-native';
 import OverlayManager from '../../src/overlays/OverlayManager';
 import IronManHUD from '../../src/overlays/components/IronManHUD';
+import EmergencyCallBar from '../../src/overlays/components/EmergencyCallBar';
+import { startVoiceGuide, stopVoiceGuide, getStepText, getTotalSteps } from '../../src/overlays/services/voiceGuide';
 
-const MOCK_HUD_DATABASE: Record<string, any> = {
+// Human-readable labels for the HUD
+const HUD_DATABASE: Record<string, any> = {
   'CARDIAC_ARREST': {
-    label: 'CARDIAC ARREST / UNCONSCIOUS',
-    description: 'Patient is unresponsive. Immediate chest compressions required to maintain blood flow to the brain.',
-    precautions: ['Do NOT stop compressions pending AED', 'Ensure patient is on a firm, flat surface'],
+    label: 'CARDIAC ARREST',
+    description: 'Person is unresponsive. Start chest compressions immediately.',
+    precautions: ['Do NOT stop compressions', 'Push on firm flat surface'],
   },
   'BLEEDING': {
-    label: 'SEVERE HEMORRHAGE',
-    description: 'Active severe bleeding detected at the extremity. Immediate sustained pressure required.',
-    precautions: ['Do NOT remove soaked bandages, add more on top', 'Elevate the wound if possible'],
+    label: 'SEVERE BLEEDING',
+    description: 'Active bleeding detected. Press hard on the wound NOW.',
+    precautions: ['Do NOT remove soaked cloth — add more', 'Elevate the wound'],
   },
   'FRACTURE': {
     label: 'SUSPECTED FRACTURE',
-    description: 'Visible structural deformation detected. High probability of bone fracture.',
-    precautions: ['Do NOT attempt to realign the bone', 'Immobilize the joint above and below the fracture'],
+    description: 'Possible broken bone. Do not move the injured area.',
+    precautions: ['Do NOT realign the bone', 'Immobilize above and below'],
   },
   'UNCONSCIOUS_BREATHING': {
-    label: 'UNCONSCIOUS & BREATHING',
-    description: 'Patient is breathing but unresponsive. Clear airway must be maintained to prevent choking.',
-    precautions: ['Do NOT lay patient flat on back', 'Constantly monitor breathing'],
+    label: 'UNCONSCIOUS — BREATHING',
+    description: 'Person is breathing but unconscious. Put them in recovery position.',
+    precautions: ['Do NOT lay flat on back', 'Monitor breathing constantly'],
   },
   'BURNS': {
-    label: 'THERMAL BURN',
-    description: 'Severe tissue damage from heat source detected. Cooling protocol required.',
-    precautions: ['Do NOT apply ice directly', 'Do NOT pop blisters'],
+    label: 'BURN INJURY',
+    description: 'Burn detected. Run cool water for 10 minutes.',
+    precautions: ['NO ice', 'NO butter or toothpaste', 'Do NOT pop blisters'],
   },
   'CHOKING': {
-    label: 'AIRWAY OBSTRUCTION (CHOKING)',
-    description: 'Patient unable to breathe or cough. Immediate abdominal thrusts (Heimlich) required.',
-    precautions: ['Do NOT perform blind finger sweeps', 'If patient becomes unconscious, begin CPR'],
+    label: 'CHOKING — AIRWAY BLOCKED',
+    description: 'Person cannot breathe. Perform Heimlich maneuver now.',
+    precautions: ['Do NOT do blind finger sweeps', 'If unconscious, start CPR'],
   },
   'SEIZURE': {
     label: 'ACTIVE SEIZURE',
-    description: 'Convulsions detected. Protect patient from injury and monitor duration.',
-    precautions: ['Do NOT restrain the patient', "Do NOT put anything in patient's mouth"],
+    description: 'Seizure in progress. Clear area. Do NOT hold them down.',
+    precautions: ['Do NOT restrain', 'Do NOT put anything in mouth'],
   },
   'STROKE': {
-    label: 'STROKE INDICATOR (F.A.S.T)',
-    description: 'Potential facial drooping or weakness detected. Crucial neurological emergency.',
-    precautions: ['Do NOT give the patient food or drink', 'Time is brain: Call 112 immediately'],
+    label: 'POSSIBLE STROKE — F.A.S.T',
+    description: 'Facial drooping or weakness detected. Call 112 NOW.',
+    precautions: ['Do NOT give food or water', 'Note the time it started'],
   },
-  'DEFAULT': {
-    label: 'UNKNOWN EMERGENCY',
-    description: 'Abnormal scene detected. Please maintain distance and assess safety.',
-    precautions: ['Assess scene safety before approaching', 'Call emergency services if unsure'],
-  }
 };
 
 const { width, height } = Dimensions.get('window');
-
-// IP address of your computer running the Node backend
 const BACKEND_URL = 'http://172.16.40.207:8080';
 
 export default function ARScreen() {
@@ -67,8 +62,11 @@ export default function ARScreen() {
   const [keypoints, setKeypoints] = useState<any[]>([]);
   const [overlayAnchor, setOverlayAnchor] = useState<{ x: number; y: number } | null>(null);
   const [detectionSource, setDetectionSource] = useState<string>('');
+  const [voiceStep, setVoiceStep] = useState(0);
+  const [voiceTotal, setVoiceTotal] = useState(0);
 
   const isProcessing = useRef(false);
+  const lastCondition = useRef<string | null>(null);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -79,7 +77,10 @@ export default function ARScreen() {
       }, 3500);
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      stopVoiceGuide();
+    };
   }, [permission]);
 
   const analyzeCurrentFrame = async () => {
@@ -109,37 +110,37 @@ export default function ARScreen() {
       const data = await response.json();
 
       if (data.condition_code && data.condition_code !== 'NONE' && data.condition_code !== 'CLEAR') {
-        // Only speak if the condition changes
-        if (currentOverlay !== data.condition_code) {
-          const richData = MOCK_HUD_DATABASE[data.condition_code] || MOCK_HUD_DATABASE['DEFAULT'];
-          Speech.speak(`Detected ${richData.label}. Follow AR instructions.`, {
-            language: 'en-IN', pitch: 0.85, rate: 0.85
+        const condition = data.condition_code;
+        
+        // Start voice guide when condition CHANGES
+        if (lastCondition.current !== condition) {
+          lastCondition.current = condition;
+          startVoiceGuide(condition, (step, total) => {
+            setVoiceStep(step);
+            setVoiceTotal(total);
           });
         }
 
-        setCurrentOverlay(data.condition_code);
+        setCurrentOverlay(condition);
         setDetectionSource(data.source || 'unknown');
 
-        // Use REAL keypoints from MoveNet (not hardcoded!)
+        // Use real keypoints from MoveNet
         if (data.keypoints && data.keypoints.length > 0) {
           setKeypoints(data.keypoints);
         } else {
-          // Fallback to reasonable defaults if MoveNet didn't detect a person
           setKeypoints([
             { name: 'chest_midpoint', x: 0.5, y: 0.42 },
-            { name: 'left_wrist', x: 0.3, y: 0.6 },
+            { name: 'left_wrist', x: 0.35, y: 0.55 },
             { name: 'hip_midpoint', x: 0.5, y: 0.65 },
-            { name: 'nose', x: 0.5, y: 0.3 }
+            { name: 'nose', x: 0.5, y: 0.25 }
           ]);
         }
 
-        // Use real overlay anchor from backend
         if (data.overlay_anchor) {
           setOverlayAnchor(data.overlay_anchor);
         }
 
-        // Build HUD data with real anchor position
-        const richData = MOCK_HUD_DATABASE[data.condition_code] || MOCK_HUD_DATABASE['DEFAULT'];
+        const richData = HUD_DATABASE[condition] || HUD_DATABASE['CARDIAC_ARREST'];
         const anchor = data.overlay_anchor || { x: 0.5, y: 0.5 };
         setHudData({
           ...richData,
@@ -147,7 +148,13 @@ export default function ARScreen() {
         });
 
       } else {
-        // Normal scene — revert to scanning
+        // Normal scene — scanning
+        if (lastCondition.current !== null) {
+          lastCondition.current = null;
+          stopVoiceGuide();
+          setVoiceStep(0);
+          setVoiceTotal(0);
+        }
         setCurrentOverlay(null);
         setHudData(null);
         setOverlayAnchor(null);
@@ -176,19 +183,31 @@ export default function ARScreen() {
         facing="back"
       />
 
-      {/* Medical AR Overlays — now using REAL keypoints */}
+      {/* Medical AR Overlays — body-anchored */}
       {currentOverlay && (
         <OverlayManager overlayType={currentOverlay} keypoints={keypoints} />
       )}
 
-      {/* Iron Man HUD — now with real anchor positions */}
+      {/* Iron Man HUD */}
       <IronManHUD data={hudData} isScanning={!currentOverlay} />
 
-      {/* Detection source indicator */}
+      {/* Emergency Call Bar + Step-by-step instructions */}
+      {currentOverlay && (
+        <EmergencyCallBar
+          condition={currentOverlay}
+          currentStep={voiceStep}
+          totalSteps={voiceTotal || getTotalSteps(currentOverlay)}
+          stepText={getStepText(currentOverlay, voiceStep)}
+        />
+      )}
+
+      {/* Detection source badge */}
       {detectionSource ? (
         <View style={styles.sourceTag}>
           <Text style={styles.sourceText}>
-            {detectionSource === 'movenet' ? '⚡ ML POSE' : '🧠 GEMINI AI'}
+            {detectionSource === 'movenet' ? '⚡ ML POSE' : 
+             detectionSource === 'groq' || detectionSource === 'gemini' ? '🧠 AI VISION' : 
+             '🔍 ANALYZING'}
           </Text>
         </View>
       ) : null}
@@ -201,20 +220,20 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   sourceTag: {
     position: 'absolute',
-    bottom: 100,
-    alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    top: 55,
+    right: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 255, 255, 0.4)',
+    borderColor: 'rgba(0, 255, 255, 0.3)',
   },
   sourceText: {
     color: '#00FFCC',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
     fontFamily: 'monospace',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   }
 });
