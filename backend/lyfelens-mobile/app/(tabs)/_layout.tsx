@@ -35,27 +35,10 @@ export default function TabLayout() {
         },
       }}
     >
-      {/* Tab 1: AR Scanner */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Scanner',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              backgroundColor: focused ? `${BRAND}18` : 'transparent',
-              width: 40,
-              height: 28,
-              borderRadius: 10,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <Ionicons
-                name={focused ? 'scan-circle' : 'scan-circle-outline'}
-                size={26}
-                color={color}
-              />
-            </View>
-          ),
+          href: null,
         }}
       />
 
@@ -83,11 +66,18 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Tab 3: First Aid Guide */}
       <Tabs.Screen
         name="guide"
         options={{
-          title: 'Guide',
+          href: null,
+        }}
+      />
+
+      {/* Tab 4: Heroes */}
+      <Tabs.Screen
+        name="heroes"
+        options={{
+          title: 'Heroes',
           tabBarIcon: ({ color, focused }) => (
             <View style={{
               backgroundColor: focused ? `${BRAND}18` : 'transparent',
@@ -98,7 +88,7 @@ export default function TabLayout() {
               justifyContent: 'center',
             }}>
               <Ionicons
-                name={focused ? 'book' : 'book-outline'}
+                name={focused ? 'people' : 'people-outline'}
                 size={24}
                 color={color}
               />

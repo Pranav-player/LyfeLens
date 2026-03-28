@@ -173,7 +173,7 @@ export default function SplashScreen() {
         <Pressable
           id="open-scanner-btn"
           style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.7 }]}
-          onPress={() => router.replace('/(tabs)/')}
+          onPress={() => router.replace('/')}
         >
           <Text style={styles.secondaryBtnText}>📷  Open AR Scanner</Text>
         </Pressable>

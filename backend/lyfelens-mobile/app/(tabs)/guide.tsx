@@ -252,7 +252,7 @@ export default function GuideScreen() {
                   <Pressable
                     id={`guide-${cond.code}-ar-btn`}
                     style={[styles.arBtn, { backgroundColor: cond.color }]}
-                    onPress={() => router.push('/(tabs)/')}
+                    onPress={() => router.push('/')}
                   >
                     <Text style={styles.arBtnText}>📷  Open AR Scanner</Text>
                   </Pressable>
