@@ -147,14 +147,14 @@ If completely normal:
   "body_part_detected": "none"
 }`
 
-// ─── Groq (Llama 3.2 Vision) ───
+// ─── Groq (Llama 3.2 11B Vision — fast, stable free-tier model) ───
 const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
     let context = ''
     if (moveNetHint) context = `\nPose detection hint: MoveNet detected "${moveNetHint}".`
     if (audioContext) context += `\nAudio: ${audioContext}`
 
     const response = await client.chat.completions.create({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: 'llama-3.2-11b-vision-preview',   // Fast, stable, available on free tier
         messages: [
             {
                 role: 'user',
@@ -162,7 +162,8 @@ const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
                     {
                         type: 'image_url',
                         image_url: {
-                            url: `data:image/jpeg;base64,${imageBase64}`
+                            url: `data:image/jpeg;base64,${imageBase64}`,
+                            detail: 'low'   // Forces smallest image resolution — much faster
                         }
                     },
                     {
@@ -173,7 +174,7 @@ const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
             }
         ],
         temperature: 0.1,
-        max_tokens: 300
+        max_tokens: 200   // Reduced from 300 — we only need compact JSON
     })
 
     const text = response.choices[0]?.message?.content?.trim() || ''
@@ -268,17 +269,26 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
         let text = ''
         const now = Date.now()
 
-        // Try Groq first (unless rate-limited)
+        // Try Groq first (unless rate-limited) — 4 second hard timeout
         if (useGroq && client && now > groqCooldownUntil) {
             try {
-                text = await analyzeWithGroq(imageBase64, audioContext, moveNetHint)
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Groq vision timeout (4s)')), 4000)
+                )
+                text = await Promise.race([
+                    analyzeWithGroq(imageBase64, audioContext, moveNetHint),
+                    timeoutPromise
+                ])
                 console.log('[Groq] Response OK:', text.substring(0, 80))
             } catch (groqErr) {
                 const msg = groqErr.message || ''
                 if (msg.includes('429') || msg.includes('rate_limit')) {
                     console.log('[Groq] ⚠️ Rate limited — switching to Gemini for 5 min')
                     groqCooldownUntil = now + 5 * 60 * 1000
-                    text = '' // force Gemini fallback below
+                    text = ''
+                } else if (msg.includes('timeout')) {
+                    console.log('[Groq] ⏱️ Timed out — trying Gemini')
+                    text = ''
                 } else {
                     console.log('[Groq] Error:', msg.substring(0, 80))
                     text = ''
