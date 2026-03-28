@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Button, Dimensions, StyleSheet, View, Text } from 'react-native';
+import { Button, Dimensions, StyleSheet, View, Text, Pressable } from 'react-native';
 import OverlayManager from '../../src/overlays/OverlayManager';
 import IronManHUD from '../../src/overlays/components/IronManHUD';
 import EmergencyCallBar from '../../src/overlays/components/EmergencyCallBar';
@@ -54,6 +55,7 @@ const { width, height } = Dimensions.get('window');
 const BACKEND_URL = 'http://172.16.40.207:8080';
 
 export default function ARScreen() {
+  const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
@@ -67,32 +69,48 @@ export default function ARScreen() {
 
   const isProcessing = useRef(false);
   const lastCondition = useRef<string | null>(null);
+  const cameraReady = useRef(false);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
 
     if (permission?.granted) {
+      // Give camera 3 seconds to warm up before first capture
+      const warmup = setTimeout(() => {
+        cameraReady.current = true;
+      }, 3000);
+
       interval = setInterval(() => {
         analyzeCurrentFrame();
       }, 3500);
+
+      return () => {
+        clearTimeout(warmup);
+        clearInterval(interval);
+        stopVoiceGuide();
+      };
     }
 
     return () => {
-      clearInterval(interval);
       stopVoiceGuide();
     };
   }, [permission]);
 
   const analyzeCurrentFrame = async () => {
-    if (!cameraRef.current || isProcessing.current) return;
+    if (!cameraRef.current || isProcessing.current || !cameraReady.current) return;
 
     isProcessing.current = true;
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 0.1,
-        scale: 0.5
-      });
+      let photo;
+      try {
+        photo = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.15,
+        });
+      } catch (captureErr) {
+        // Camera not ready yet — silently skip
+        return;
+      }
 
       if (!photo?.base64) return;
 
@@ -211,6 +229,14 @@ export default function ARScreen() {
           </Text>
         </View>
       ) : null}
+
+      {/* Premium Floating Home Button */}
+      <Pressable 
+        style={styles.homeButton} 
+        onPress={() => router.push('/explore')}
+      >
+        <Text style={styles.homeButtonText}>Home</Text>
+      </Pressable>
     </View>
   );
 }
@@ -234,6 +260,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     fontFamily: 'monospace',
+    letterSpacing: 0.5,
+  },
+  homeButton: {
+    position: 'absolute',
+    top: 55,
+    left: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  homeButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
     letterSpacing: 0.5,
   }
 });
