@@ -238,10 +238,11 @@ function TargetCrosshair() {
 // =============================================================================
 // SHOCKWAVE RING — pulses outward on each compression
 // =============================================================================
-function ShockwaveRing({ phase }: { phase: number }) {
+function ShockwaveRing({ phaseRef }: { phaseRef: React.MutableRefObject<number> }) {
   const meshRef = useRef<THREE.Mesh>(null);
   useFrame(() => {
     if (!meshRef.current) return;
+    const phase = phaseRef.current;
     const s = 0.8 + phase * 2.5;
     meshRef.current.scale.set(s, 1, s);
     (meshRef.current.material as THREE.MeshBasicMaterial).opacity =
@@ -359,7 +360,7 @@ export default function CPRHands3D({ worldX, worldY }: CPRHands3DProps) {
       <TargetCrosshair />
 
       {/* === SHOCKWAVE PULSE === */}
-      <ShockwaveRing phase={ringPhaseRef.current} />
+      <ShockwaveRing phaseRef={ringPhaseRef} />
 
       {/* === TOP HAND (dominant, pressing — palm down on chest) === */}
       <group ref={topHandRef} position={[0, 40, 0]}>

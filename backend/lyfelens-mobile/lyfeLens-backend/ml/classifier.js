@@ -3,13 +3,14 @@
 
 const get = (kps, name) => kps.find(k => k.name === name)
 
-// Person lying flat (head and hips at same Y level)
 const isLying = (kps) => {
     const head = get(kps, 'nose')
-    const hip = get(kps, 'left_hip')
+    const hipL = get(kps, 'left_hip')
+    const hipR = get(kps, 'right_hip')
+    const hip = hipL?.valid ? hipL : (hipR?.valid ? hipR : null)
 
-    if (!head || !hip || !head.valid || !hip.valid) return false
-    return Math.abs(head.y - hip.y) < 0.08
+    if (!head || !head.valid || !hip || !hip.valid) return false
+    return Math.abs(head.y - hip.y) < 0.35 // Greatly relaxed for top-down angles
 }
 
 // Hands on own throat (both wrists near nose level)

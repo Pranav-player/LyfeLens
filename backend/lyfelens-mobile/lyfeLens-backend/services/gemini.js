@@ -193,8 +193,9 @@ const analyzeWithGemini = async (imageBase64, audioContext, moveNetHint) => {
     return result.response.text().trim()
 }
 
-// Rate limit cooldown: when Groq 429s, pause for 5 min
+// Rate limit cooldowns
 let groqCooldownUntil = 0
+let geminiCooldownUntil = 0
 
 // ─── Main entry point ───
 const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) => {
@@ -220,10 +221,23 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
             }
         }
 
-        // Fallback to Gemini
-        if (!text && geminiModel) {
-            text = await analyzeWithGemini(imageBase64, audioContext, moveNetHint)
-            console.log('[Gemini] Response OK:', text.substring(0, 80))
+        // Fallback to Gemini (unless rate-limited)
+        if (!text && geminiModel && Date.now() > geminiCooldownUntil) {
+            try {
+                text = await analyzeWithGemini(imageBase64, audioContext, moveNetHint)
+                console.log('[Gemini] Response OK:', text.substring(0, 80))
+            } catch (geminiErr) {
+                const msg = geminiErr.message || ''
+                if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+                    console.log('[Gemini] ⚠️ Rate limited — pausing Gemini for 5 min')
+                    geminiCooldownUntil = Date.now() + 5 * 60 * 1000
+                } else {
+                    console.log('[Gemini] Error:', msg.substring(0, 100))
+                }
+            }
+        } else if (!text && geminiCooldownUntil > Date.now()) {
+            const remaining = Math.round((geminiCooldownUntil - Date.now()) / 1000)
+            console.log(`[Gemini] ⏳ Still cooling down (${remaining}s left)`)
         }
 
         if (!text) {

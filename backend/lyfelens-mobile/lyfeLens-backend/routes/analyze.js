@@ -84,13 +84,27 @@ router.post('/', async (req, res) => {
         let bodyPart = 'chest'
         let source = 'none'
 
-        // 2a. MoveNet pose classification (CPR, Choking, Seizure)
+        // 2a. MoveNet pose classification (CPR, Choking, Seizure) — FAST PATH, no AI needed!
         if (moveNetScene && cache.has(moveNetScene)) {
             conditionCode = moveNetScene
             confidence = 85
             source = 'movenet'
             bodyPart = scenarios[moveNetScene]?.body_part || 'chest'
-            console.log(`[Stage 1] MoveNet → ${conditionCode}`)
+            console.log(`[Stage 1] MoveNet → ${conditionCode} (fast path, skipping AI)`)
+
+            // Return immediately with keypoints — no need to call AI at all
+            const scenarioData = scenarios[conditionCode] || scenarios['CARDIAC_ARREST']
+            const overlayAnchor = getAnchor(keypoints, bodyPart)
+            return res.json({
+                condition_code: conditionCode,
+                confidence,
+                keypoints,
+                hasPerson,
+                rescuerArmsBent: mlResult.rescuerArmsBent || false,
+                source,
+                scenario_text: scenarioData?.scenario_text || '',
+                overlay_anchor: overlayAnchor
+            })
         }
 
         // 2b. Our own trained EfficientNet classifier
