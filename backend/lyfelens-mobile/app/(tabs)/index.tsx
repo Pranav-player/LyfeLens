@@ -101,34 +101,39 @@ export default function ARScreen() {
   const [voiceTotal, setVoiceTotal] = useState(0);
 
   const isProcessing = useRef(false);
-  // LOCK: When true, we stop sending images to the backend to save battery/network
+  // LOCK: When true, we keep tracking but skip the heavy AI inference
   const isEmergencyActive = useRef(false);
   const lastCondition = useRef<string | null>(null);
   const cameraReady = useRef(false);
   const frameCount = useRef(0);
+  const wristBaselineSet = useRef(false);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-
-    if (permission?.granted) {
-      const warmup = setTimeout(() => {
-        cameraReady.current = true;
-        console.log('[Camera] Ready — starting frame analysis');
-      }, 3000);
-
-      // Analyze frame every 3.5s UNLESS emergency is active
-      interval = setInterval(() => {
-        analyzeCurrentFrame();
-      }, 3500);
-
-      return () => {
-        clearTimeout(warmup);
-        clearInterval(interval);
-        stopVoiceGuide();
-      };
+    if (!permission?.granted) {
+      return () => { stopVoiceGuide(); };
     }
 
+    const warmup = setTimeout(() => {
+      cameraReady.current = true;
+      console.log('[Camera] Ready — starting frame analysis');
+    }, 3000);
+
+    // ADAPTIVE POLLING: fast during emergencies, slow during idle scanning
+    let stopped = false;
+    const scheduleNext = () => {
+      if (stopped) return;
+      const delay = isEmergencyActive.current ? 800 : 3500;
+      setTimeout(async () => {
+        await analyzeCurrentFrame();
+        scheduleNext();
+      }, delay);
+    };
+    // Kick off after warmup
+    setTimeout(scheduleNext, 3200);
+
     return () => {
+      stopped = true;
+      clearTimeout(warmup);
       stopVoiceGuide();
     };
   }, [permission]);
@@ -188,6 +193,12 @@ export default function ARScreen() {
           console.log(`[Frame ${frame}] 🚨 NEW CONDITION: ${condition} — fetching instructions + starting voice`);
           lastCondition.current = condition;
           
+          // Reset CPR biometric trackers for a clean start
+          compressionsCount.current = 0;
+          wristBaselineSet.current = false;
+          lastCompressionTime.current = Date.now();
+          lastVoiceCorrection.current = Date.now();
+          
           // Fetch instructions (Groq or offline fallback)
           getMedicalInstructionsFromGroq(condition).then((steps) => {
             console.log(`[Frame ${frame}] Got ${steps.length} instruction steps`);
@@ -211,48 +222,88 @@ export default function ARScreen() {
         if (data.keypoints && data.keypoints.length > 0) {
           setKeypoints(data.keypoints);
 
-          // === REAL-TIME CPR COACHING LOGIC ===
+          // === REAL-TIME CPR COACHING ENGINE ===
           if (condition === 'CARDIAC_ARREST') {
             const now = Date.now();
+            const canSpeak = async () => {
+              const speaking = await Speech.isSpeakingAsync();
+              return !speaking && (now - lastVoiceCorrection.current > 3000);
+            };
             
-            // 1. Arm Angle Voice Correction
+            // 1. ARM STRAIGHTNESS CHECK (from backend MoveNet arm angle)
             if (data.rescuerArmsBent) {
-              Speech.isSpeakingAsync().then(speaking => {
-                if (!speaking && now - lastVoiceCorrection.current > 5000) {
+              canSpeak().then(ok => {
+                if (ok) {
                   Speech.speak("Keep your arms straight. Do not bend your elbows.", { rate: 1.25 });
                   lastVoiceCorrection.current = now;
                 }
               });
             }
 
-            // 2. Compression Tracker (Wrist Y delta)
+            // 2. HAND PLACEMENT CHECK (distance from sternum)
+            const sternum = data.keypoints.find((k: any) => k.name === 'sternum');
             const wrist = data.keypoints.find((k: any) => k.name === 'right_wrist' || k.name === 'left_wrist');
-            if (wrist && wrist.score && wrist.score > 0.3) {
-              const dy = wrist.y - lastWristY.current;
-              lastWristY.current = wrist.y;
+            
+            if (sternum && wrist && sternum.score > 0.3 && wrist.score > 0.3) {
+              const dx = Math.abs(wrist.x - sternum.x);
+              const dy_placement = Math.abs(wrist.y - sternum.y);
               
-              // Downward plunge threshold for 1 compression
-              if (dy > 0.04) { 
-                compressionsCount.current += 1;
-                const timeSinceLast = now - lastCompressionTime.current;
-                lastCompressionTime.current = now;
+              // If hands are too far from sternum (> 15% of frame), warn
+              if (dx > 0.15 || dy_placement > 0.15) {
+                canSpeak().then(ok => {
+                  if (ok) {
+                    Speech.speak("Move your hands to the center of the chest.", { rate: 1.25 });
+                    lastVoiceCorrection.current = now;
+                  }
+                });
+              }
+            }
+
+            // 3. COMPRESSION MOTION TRACKER (Wrist Y delta)
+            if (wrist && wrist.score && wrist.score > 0.3) {
+              // Set baseline on first valid frame (prevents fake compression on init)
+              if (!wristBaselineSet.current) {
+                lastWristY.current = wrist.y;
+                wristBaselineSet.current = true;
+              } else {
+                const dy = wrist.y - lastWristY.current;
+                lastWristY.current = wrist.y;
                 
-                // If compression takes longer than 600ms (slower than 100bpm)
-                if (timeSinceLast > 650) {
-                  Speech.isSpeakingAsync().then(speaking => {
-                    if (!speaking && now - lastVoiceCorrection.current > 4000) {
-                      Speech.speak("Press faster. 100 to 120 times per minute.", { rate: 1.25 });
-                      lastVoiceCorrection.current = now;
-                    }
-                  });
-                }
-                
-                // 30 compressions cycle
-                if (compressionsCount.current >= 30) {
-                  Speech.stop();
-                  Speech.speak("Stop CPR. Give two rescue breaths.", { rate: 1.25 });
-                  compressionsCount.current = 0; // reset loop for next 30
-                  lastVoiceCorrection.current = now;
+                // Downward plunge > 0.03 normalized = 1 compression detected
+                if (dy > 0.03) { 
+                  compressionsCount.current += 1;
+                  const timeSinceLast = now - lastCompressionTime.current;
+                  lastCompressionTime.current = now;
+                  
+                  console.log(`[CPR] Compression #${compressionsCount.current} (interval: ${timeSinceLast}ms)`);
+                  
+                  // TOO SLOW: compression takes longer than 650ms (slower than ~92bpm)
+                  if (timeSinceLast > 650) {
+                    canSpeak().then(ok => {
+                      if (ok) {
+                        Speech.speak("Press faster. 100 to 120 times per minute.", { rate: 1.25 });
+                        lastVoiceCorrection.current = now;
+                      }
+                    });
+                  }
+                  
+                  // TOO FAST: compression takes less than 400ms (faster than ~150bpm)
+                  if (timeSinceLast > 0 && timeSinceLast < 400) {
+                    canSpeak().then(ok => {
+                      if (ok) {
+                        Speech.speak("Slow down slightly. Keep a steady rhythm.", { rate: 1.25 });
+                        lastVoiceCorrection.current = now;
+                      }
+                    });
+                  }
+                  
+                  // 30 COMPRESSIONS CYCLE → rescue breaths
+                  if (compressionsCount.current >= 30) {
+                    Speech.stop();
+                    Speech.speak("30 compressions done. Give two rescue breaths now.", { rate: 1.25 });
+                    compressionsCount.current = 0;
+                    lastVoiceCorrection.current = now;
+                  }
                 }
               }
             }
@@ -299,6 +350,7 @@ export default function ARScreen() {
 
   const clearEmergency = () => {
     console.log('[UI] Manual Clear Emergency triggered');
+    Speech.stop();
     stopVoiceGuide();
     setCurrentOverlay(null);
     setHudData(null);
@@ -308,6 +360,12 @@ export default function ARScreen() {
     setVoiceTotal(0);
     lastCondition.current = null;
     isEmergencyActive.current = false; // UNLOCK camera loop
+    // Reset CPR biometric trackers
+    compressionsCount.current = 0;
+    wristBaselineSet.current = false;
+    lastWristY.current = 0;
+    lastCompressionTime.current = Date.now();
+    lastVoiceCorrection.current = Date.now();
   };
 
   if (!permission?.granted) {

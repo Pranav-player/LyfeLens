@@ -86,8 +86,9 @@ router.post('/', async (req, res) => {
                     confidence: 99,
                     keypoints: keypoints,
                     hasPerson: hasPerson,
+                    rescuerArmsBent: mlResult.rescuerArmsBent || false,
                     source: 'tracking_cache',
-                    overlay_anchor: getAnchor(activeCondition, keypoints, hasPerson)
+                    overlay_anchor: getAnchor(keypoints, activeCondition)
                 });
             }
 

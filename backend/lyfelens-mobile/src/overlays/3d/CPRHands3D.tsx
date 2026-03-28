@@ -113,9 +113,24 @@ function TargetCrosshair() {
   );
 }
 
-// Depth gauge bar (shows press depth)
-function DepthGauge({ pressT }: { pressT: number }) {
-  const fillH = 6 + pressT * 42; // 0 to 48
+// Live depth gauge that reads from the parent's pressTRef
+function LiveDepthGauge({ pressTRef }: { pressTRef: React.MutableRefObject<number> }) {
+  const fillRef = useRef<THREE.Mesh>(null);
+  const colorRef = useRef<THREE.MeshStandardMaterial>(null);
+
+  useFrame(() => {
+    if (!fillRef.current) return;
+    const p = pressTRef.current;
+    const fillH = 6 + p * 42;
+    fillRef.current.scale.y = fillH / 48;
+    fillRef.current.position.y = -50 + fillH / 2;
+    
+    // Color changes: green when in optimal range, yellow otherwise
+    if (colorRef.current) {
+      colorRef.current.color.set(p > 0.5 ? '#00CC88' : '#5BB8F5');
+    }
+  });
+
   return (
     <group position={[100, 0, 0]}>
       {/* Background track */}
@@ -129,9 +144,9 @@ function DepthGauge({ pressT }: { pressT: number }) {
         <meshBasicMaterial color="#00C8FF" transparent opacity={0.9} />
       </mesh>
       {/* Animated fill */}
-      <mesh position={[0, -50 + fillH / 2, 0]}>
-        <boxGeometry args={[10, fillH, 10]} />
-        <meshStandardMaterial color="#5BB8F5" transparent opacity={0.8} />
+      <mesh ref={fillRef} position={[0, -50, 0]}>
+        <boxGeometry args={[10, 48, 10]} />
+        <meshStandardMaterial ref={colorRef as any} color="#5BB8F5" transparent opacity={0.8} />
       </mesh>
     </group>
   );
@@ -244,8 +259,8 @@ export default function CPRHands3D({ worldX, worldY }: CPRHands3DProps) {
         <meshBasicMaterial color="#2288CC" transparent opacity={0.2} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* === DEPTH GAUGE === */}
-      <DepthGauge pressT={0.5} />
+      {/* === LIVE DEPTH GAUGE === */}
+      <LiveDepthGauge pressTRef={pressTRef} />
     </group>
   );
 }
