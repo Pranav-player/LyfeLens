@@ -207,16 +207,6 @@ node server.js
 
 ---
 
-## 🔮 Future Scope
-
-* 🎥 Real-time video analysis
-* ☁️ Cloud deployment (AWS/GCP)
-* 🗣️ Voice-guided assistance
-* 📊 Admin dashboard
-* 🤝 Integration with hospitals & emergency systems
-
----
-
 ## 👨‍💻 Contributors
 
 * Pranav Bhatia
