@@ -114,7 +114,7 @@ export async function getMedicalInstructionsFromGroq(condition: string): Promise
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192',
+        model: 'llama-3.1-8b-instant',   // llama3-8b-8192 is deprecated — causes 400
         messages: [
           {
             role: 'system',
