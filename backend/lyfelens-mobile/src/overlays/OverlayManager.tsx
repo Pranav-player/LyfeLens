@@ -6,6 +6,7 @@ import BurnsOverlay from './BurnsOverlay'
 import HeimlichOverlay from './HeimlichOverlay'
 import SeizureOverlay from './SeizureOverlay'
 import StrokeOverlay from './strokeOverlay'
+import MedicalHologram from './components/MedicalHologram'
 
 type Keypoint = { x: number, y: number }
 
@@ -21,7 +22,13 @@ const kp = (keypoints: Keypoint[], name: string) =>
 export default function OverlayManager({ overlayType, keypoints }: Props) {
     switch (overlayType) {
         case 'CARDIAC_ARREST':
-            return <CPROverlay keypoint={kp(keypoints, 'chest_midpoint')} />
+            const chest = kp(keypoints, 'chest_midpoint')
+            return (
+                <>
+                    <CPROverlay keypoint={chest} />
+                    <MedicalHologram x={chest.x} y={chest.y} conditionCode={overlayType} />
+                </>
+            )
 
         case 'BLEEDING':
             return <BleedingOverlay keypoint={kp(keypoints, 'left_wrist')} />
