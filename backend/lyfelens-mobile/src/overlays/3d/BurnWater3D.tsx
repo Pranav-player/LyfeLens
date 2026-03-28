@@ -21,7 +21,7 @@ const SKIN = {
 };
 
 function SkinMat({ color, roughness = 0.55 }: { color: string; roughness?: number }) {
-  return <meshStandardMaterial color={color} roughness={roughness} metalness={0.02} />;
+  return <meshBasicMaterial color={color} />;
 }
 
 // =============================================================================
@@ -33,27 +33,27 @@ function WaterBottle() {
       {/* Bottle body */}
       <mesh>
         <cylinderGeometry args={[10, 10, 55, 16]} />
-        <meshStandardMaterial color="#C8E8FF" roughness={0.1} metalness={0.05} transparent opacity={0.65} />
+        <meshBasicMaterial color="#C8E8FF" transparent opacity={0.65} />
       </mesh>
       {/* Bottle neck */}
       <mesh position={[0, 32, 0]}>
         <cylinderGeometry args={[5, 7, 12, 12]} />
-        <meshStandardMaterial color="#B8DDFF" roughness={0.1} transparent opacity={0.7} />
+        <meshBasicMaterial color="#B8DDFF" roughness={0.1} transparent opacity={0.7} />
       </mesh>
       {/* Cap */}
       <mesh position={[0, 39, 0]}>
         <cylinderGeometry args={[6, 6, 4, 12]} />
-        <meshStandardMaterial color="#4488CC" roughness={0.3} />
+        <meshBasicMaterial color="#4488CC" roughness={0.3} />
       </mesh>
       {/* Water level inside */}
       <mesh position={[0, -5, 0]}>
         <cylinderGeometry args={[9, 9, 35, 16]} />
-        <meshStandardMaterial color="#4499DD" roughness={0.05} transparent opacity={0.4} />
+        <meshBasicMaterial color="#4499DD" roughness={0.05} transparent opacity={0.4} />
       </mesh>
       {/* Label band */}
       <mesh position={[0, 2, 0]}>
         <cylinderGeometry args={[10.5, 10.5, 20, 16]} />
-        <meshStandardMaterial color="#FFFFFF" roughness={0.4} transparent opacity={0.3} />
+        <meshBasicMaterial color="#FFFFFF" roughness={0.4} transparent opacity={0.3} />
       </mesh>
     </group>
   );
@@ -151,7 +151,7 @@ function WaterDrop({ startX, startZ, delay, speed }: {
   return (
     <mesh ref={meshRef} position={[startX, 0, startZ]}>
       <sphereGeometry args={[2.5 + Math.random() * 2.5, 8, 8]} />
-      <meshStandardMaterial color="#55BBFF" transparent opacity={0.8} roughness={0.05} metalness={0.1} />
+      <meshBasicMaterial color="#55BBFF" transparent opacity={0.8} />
     </mesh>
   );
 }
@@ -172,7 +172,7 @@ function WaterStream({ xOffset }: { xOffset: number }) {
   return (
     <mesh ref={meshRef} position={[xOffset, 60, 0]}>
       <cylinderGeometry args={[3.5, 1.5, 140, 10]} />
-      <meshStandardMaterial color="#77CCFF" transparent opacity={baseOp} roughness={0.08} metalness={0.05} />
+      <meshBasicMaterial color="#77CCFF" transparent opacity={baseOp} />
     </mesh>
   );
 }

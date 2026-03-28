@@ -22,7 +22,7 @@ const SKIN = {
 };
 
 function SkinMat({ color, roughness = 0.55 }: { color: string; roughness?: number }) {
-  return <meshStandardMaterial color={color} roughness={roughness} metalness={0.02} />;
+  return <meshBasicMaterial color={color} />;
 }
 
 // =============================================================================

@@ -27,15 +27,10 @@ const SKIN = {
   nail: '#F0C8B8',      // pinkish nails
 };
 
-// Reusable material creator
-function SkinMat({ color, roughness = 0.55 }: { color: string; roughness?: number }) {
-  return (
-    <meshStandardMaterial
-      color={color}
-      roughness={roughness}
-      metalness={0.02}
-    />
-  );
+// Reusable material — meshBasicMaterial works reliably on EXGL (expo-gl)
+// meshStandardMaterial silently fails on Android's limited WebGL implementation
+function SkinMat({ color }: { color: string; roughness?: number }) {
+  return <meshBasicMaterial color={color} />;
 }
 
 // =============================================================================
@@ -284,9 +279,10 @@ function LiveDepthGauge({ pressTRef }: { pressTRef: React.MutableRefObject<numbe
         <boxGeometry args={[18, 2.5, 10]} />
         <meshBasicMaterial color="#00C8FF" transparent opacity={0.9} />
       </mesh>
+      {/* Fill bar */}
       <mesh ref={fillRef} position={[0, -50, 0]}>
         <boxGeometry args={[10, 48, 10]} />
-        <meshStandardMaterial ref={colorRef as any} color="#5BB8F5" transparent opacity={0.8} />
+        <meshBasicMaterial ref={colorRef as any} color="#5BB8F5" transparent opacity={0.8} />
       </mesh>
       {/* Label: 5-6cm optimal zone */}
       <mesh position={[0, 25, 8]}>
@@ -350,11 +346,8 @@ export default function CPRHands3D({ worldX, worldY }: CPRHands3DProps) {
 
   return (
     <group ref={groupRef} position={[worldX, worldY, 0]}>
-      {/* === LIGHTING === */}
-      <ambientLight intensity={1.0} color="#FFF5E8" />
-      <pointLight position={[0, 200, -100]} intensity={1.8} color="#FFE8CC" />
-      <pointLight position={[0, -100, 200]} intensity={0.6} color="#FFFFFF" />
-      <pointLight position={[-100, 50, 0]} intensity={0.4} color="#FFD4B0" />
+      {/* === LIGHTING — use ambient only for basic material compatibility === */}
+      <ambientLight intensity={2.0} color="#FFFFFF" />
 
       {/* === TARGET CROSSHAIR ON CHEST === */}
       <TargetCrosshair />

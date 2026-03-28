@@ -22,7 +22,7 @@ const SKIN = {
 };
 
 function SkinMat({ color, roughness = 0.55 }: { color: string; roughness?: number }) {
-  return <meshStandardMaterial color={color} roughness={roughness} metalness={0.02} />;
+  return <meshBasicMaterial color={color} />;
 }
 
 // =============================================================================
@@ -118,7 +118,7 @@ function Bandage({ pressY }: { pressY: number }) {
       {/* Main cloth */}
       <mesh>
         <boxGeometry args={[70, 3, 45]} />
-        <meshStandardMaterial color="#F9F5F0" roughness={0.85} opacity={0.94} transparent />
+        <meshBasicMaterial color="#F9F5F0" roughness={0.85} opacity={0.94} transparent />
       </mesh>
 
       {/* Gauze weave pattern */}
@@ -147,7 +147,7 @@ function Bandage({ pressY }: { pressY: number }) {
       {[-1, 1].map(side => (
         <mesh key={side} position={[0, 0, side * 21]}>
           <boxGeometry args={[70, 4, 4]} />
-          <meshStandardMaterial color="#DDD0C8" roughness={0.7} opacity={0.85} transparent />
+          <meshBasicMaterial color="#DDD0C8" roughness={0.7} opacity={0.85} transparent />
         </mesh>
       ))}
     </group>

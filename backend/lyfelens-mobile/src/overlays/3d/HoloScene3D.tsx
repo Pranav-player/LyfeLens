@@ -123,7 +123,8 @@ export default function HoloScene3D({ overlayType, keypoints }: Props) {
       >
         <Canvas
           style={{ flex: 1, backgroundColor: 'transparent' }}
-          gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
+          gl={{ alpha: true, antialias: false, premultipliedAlpha: false }}
+          frameloop="always"
           camera={{
             type: 'OrthographicCamera',
             left: -W / 2,
