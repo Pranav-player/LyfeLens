@@ -27,15 +27,25 @@ type Props = {
   keypoints: { name: string; x: number; y: number }[];
 };
 
-function findKp(keypoints: { name: string; x: number; y: number }[], name: string) {
-  return keypoints.find(k => k.name === name) || { x: 0.5, y: 0.42 };
+function findKp(keypoints: { name: string; x: number; y: number }[], name: string, fallback = { x: 0.5, y: 0.42 }) {
+  return keypoints.find(k => k.name === name) || fallback;
+}
+
+// For CARDIAC_ARREST: try sternum → chest_midpoint → nose → screen center
+function findChestKp(keypoints: { name: string; x: number; y: number }[]) {
+  return (
+    keypoints.find(k => k.name === 'sternum') ||
+    keypoints.find(k => k.name === 'chest_midpoint') ||
+    keypoints.find(k => k.name === 'nose') ||
+    { x: 0.5, y: 0.42 }
+  );
 }
 
 function Scene({ overlayType, keypoints }: Props) {
   switch (overlayType) {
     case 'CARDIAC_ARREST': {
-      // Use the new mathematically injected sternum point (25% down the torso)
-      const { worldX, worldY } = toWorld(findKp(keypoints, 'sternum'));
+      // Try sternum → chest_midpoint → nose → center as fallbacks
+      const { worldX, worldY } = toWorld(findChestKp(keypoints));
       return <CPRHands3D worldX={worldX} worldY={worldY} />;
     }
     case 'BURNS':
@@ -64,15 +74,22 @@ function Scene({ overlayType, keypoints }: Props) {
 
 // Error boundary — if Canvas/GL crashes, falls back to null (SVG takes over)
 class CanvasErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean }
+  { children: React.ReactNode; overlayType: string },
+  { hasError: boolean; lastType: string }
 > {
   constructor(props: any) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, lastType: props.overlayType };
   }
   static getDerivedStateFromError() {
     return { hasError: true };
+  }
+  // Reset the error boundary when the overlay type changes so it can retry
+  static getDerivedStateFromProps(props: any, state: any) {
+    if (props.overlayType !== state.lastType) {
+      return { hasError: false, lastType: props.overlayType };
+    }
+    return null;
   }
   componentDidCatch(error: Error) {
     console.log('[HoloScene3D] ❌ Canvas crashed:', error.message);
@@ -90,7 +107,7 @@ export default function HoloScene3D({ overlayType, keypoints }: Props) {
   console.log(`[HoloScene3D] Rendering: ${overlayType}`);
 
   return (
-    <CanvasErrorBoundary>
+    <CanvasErrorBoundary overlayType={overlayType}>
       <View
         pointerEvents="none"
         style={{

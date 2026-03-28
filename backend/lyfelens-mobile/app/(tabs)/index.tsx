@@ -143,8 +143,8 @@ export default function ARScreen() {
     let stopped = false;
     const scheduleNext = () => {
       if (stopped) return;
-      // Fast while emergency active; 1.5s in idle (was 3.5s — cuts detection delay)
-      const delay = isEmergencyActive.current ? 800 : 1500;
+      // Fast while emergency active; 1s idle (enough for scan, minimizes latency)
+      const delay = isEmergencyActive.current ? 600 : 1000;
       setTimeout(async () => {
         await analyzeCurrentFrame();
         scheduleNext();
@@ -175,7 +175,7 @@ export default function ARScreen() {
       try {
         photo = await cameraRef.current.takePictureAsync({
           base64: true,
-          quality: 0.15,
+          quality: 0.3,   // High enough for Groq Vision to detect burns/bleeds clearly
         });
       } catch (captureErr) {
         console.log(`[Frame ${frame}] Camera not ready, skipping`);

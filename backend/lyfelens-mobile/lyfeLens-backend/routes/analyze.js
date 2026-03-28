@@ -24,21 +24,27 @@ const initML = async () => {
 
 initML()
 
-// ─── Helper: run MoveNet on a frame ─────────────────────────────────────────
+// ─── Helper: run MoveNet and return ALL fields including heuristic scene ─────
+// Returns: { keypoints, hasPerson, rescuerArmsBent, scene }
+// `scene` = heuristic pose classification (CARDIAC_ARREST / CHOKING / SEIZURE / null)
+// When scene is non-null we can return IMMEDIATELY without any AI call!
 const runMoveNet = async (imageBase64) => {
     if (!moveNetReady || !processFrame || !imageBase64) {
-        return { keypoints: [], hasPerson: false, rescuerArmsBent: false }
+        return { keypoints: [], hasPerson: false, rescuerArmsBent: false, scene: null }
     }
     try {
+        const t0 = Date.now()
         const result = await processFrame(imageBase64)
+        console.log(`[MoveNet] ${Date.now() - t0}ms — scene=${result.scene || 'null'} hasPerson=${result.hasPerson}`)
         return {
             keypoints: result.keypoints || [],
             hasPerson: result.hasPerson || false,
-            rescuerArmsBent: result.rescuerArmsBent || false
+            rescuerArmsBent: result.rescuerArmsBent || false,
+            scene: result.scene || null          // ← Heuristic result from classifier.js
         }
     } catch (e) {
         console.log('[MoveNet] Error:', e.message)
-        return { keypoints: [], hasPerson: false, rescuerArmsBent: false }
+        return { keypoints: [], hasPerson: false, rescuerArmsBent: false, scene: null }
     }
 }
 
@@ -60,56 +66,63 @@ const buildResponse = (conditionCode, confidence, keypoints, hasPerson, source, 
 
 // ─── Main Route ──────────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
-    // personHint: frontend's cached hasPerson value from the previous frame
+    const t_start = Date.now()
     const { sessionId, imageBase64, audioContext, lat, lng, activeCondition, hasPerson: personHint } = req.body
 
     try {
 
         // ═══════════════════════════════════════════════════════════════════
-        // TRACKING FAST-PATH
-        // We're mid-emergency → just run MoveNet for fresh keypoints and echo
-        // back the same condition. No AI calls needed at all.
-        // This runs at ~800ms intervals to keep AR anchors smooth.
+        // TRACKING FAST-PATH — Emergency already active
+        // Just run MoveNet for fresh keypoints → echo same condition back.
+        // No AI. Runs at ~800ms and keeps AR anchors smooth.
         // ═══════════════════════════════════════════════════════════════════
         if (activeCondition && activeCondition !== 'NONE') {
-            const { keypoints, hasPerson, rescuerArmsBent } = await runMoveNet(imageBase64)
+            const mv = await runMoveNet(imageBase64)
+            console.log(`[Tracking] ${Date.now() - t_start}ms`)
             return res.json({
                 condition_code: activeCondition,
                 confidence: 99,
-                keypoints,
-                hasPerson,
-                rescuerArmsBent,
+                keypoints: mv.keypoints,
+                hasPerson: mv.hasPerson,
+                rescuerArmsBent: mv.rescuerArmsBent,
                 source: 'tracking_cache',
-                overlay_anchor: getAnchor(keypoints, activeCondition)
+                overlay_anchor: getAnchor(mv.keypoints, activeCondition)
             })
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // PATH A — hasPerson = true  (frontend confirmed a person last frame)
+        // PATH A — Person detected last frame (personHint = true)
         //
-        //  1. MoveNet → fresh keypoints + confirm hasPerson
-        //  2. Groq text (llama-3.1-8b-instant, ~150ms, chat quota)
-        //     → receives keypoints as structured text, not an image
-        //     → classifies: CARDIAC_ARREST / CHOKING / SEIZURE
-        //  3. Return result + keypoints for AR hand rendering
+        // ⚡ FAST-TIER-1: Run MoveNet → if heuristic classifier fires
+        //    (isLying / isChoking / isSeizure) → return INSTANTLY, zero AI!
+        //    This is sub-100ms on top of MoveNet time.
+        //
+        // ⚡ FAST-TIER-2: If heuristic didn't match → send keypoints as TEXT
+        //    to Groq llama-3.1-8b-instant (~150ms, chat quota, no image!)
+        //    → CARDIAC_ARREST / CHOKING / SEIZURE
         // ═══════════════════════════════════════════════════════════════════
         if (personHint) {
-            console.log('[Path A] Person hint=true → MoveNet then Groq text')
+            console.log('[Path A] Person expected → MoveNet first')
+            const mv = await runMoveNet(imageBase64)
 
-            // Step A1: Fresh keypoints
-            const { keypoints, hasPerson, rescuerArmsBent } = await runMoveNet(imageBase64)
-            console.log(`[MoveNet] ${hasPerson ? `✅ Person confirmed (${keypoints.length} kps)` : '❌ Person not found this frame'}`)
+            if (mv.hasPerson) {
+                // ─── TIER 1: Heuristic classifier (instant, no API call) ───
+                if (mv.scene) {
+                    console.log(`[Path A/Heuristic] ⚡ ${mv.scene} — no AI needed! (${Date.now() - t_start}ms total)`)
+                    const response = buildResponse(mv.scene, 88, mv.keypoints, true, 'movenet-heuristic', { rescuerArmsBent: mv.rescuerArmsBent })
+                    saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
+                    return res.json(response)
+                }
 
-            // Step A2: Groq text classification from keypoints
-            if (hasPerson && keypoints.length > 0) {
+                // ─── TIER 2: Groq text from keypoints (~150ms, chat quota) ───
+                console.log('[Path A] Heuristic null → Groq text classification')
                 try {
-                    const kpResult = await analyzeFromKeypoints(keypoints)
+                    const t1 = Date.now()
+                    const kpResult = await analyzeFromKeypoints(mv.keypoints)
+                    console.log(`[Groq/KP] ${Date.now() - t1}ms`)
                     if (kpResult && kpResult.condition_code && kpResult.condition_code !== 'NONE') {
-                        console.log(`[Groq/KP] ✅ ${kpResult.condition_code} (${kpResult.confidence}%)`)
-                        const response = buildResponse(
-                            kpResult.condition_code, kpResult.confidence,
-                            keypoints, hasPerson, 'groq-kp', { rescuerArmsBent }
-                        )
+                        console.log(`[Groq/KP] ✅ ${kpResult.condition_code} (${kpResult.confidence}%) — total ${Date.now() - t_start}ms`)
+                        const response = buildResponse(kpResult.condition_code, kpResult.confidence, mv.keypoints, true, 'groq-kp', { rescuerArmsBent: mv.rescuerArmsBent })
                         saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
                         return res.json(response)
                     }
@@ -117,58 +130,62 @@ router.post('/', async (req, res) => {
                 } catch (e) {
                     console.log('[Groq/KP] Error:', e.message)
                 }
-                // Person present but no emergency
-                return res.json({ condition_code: 'NONE', confidence: 95, keypoints, hasPerson, source: 'clear' })
+
+                // Person confirmed but no emergency detected
+                return res.json({ condition_code: 'NONE', confidence: 95, keypoints: mv.keypoints, hasPerson: true, source: 'clear' })
             }
 
-            // Person hint was true but MoveNet couldn't confirm — fall through to Path B
-            console.log('[Path A] MoveNet did not confirm person, falling to Path B')
+            // personHint was true but MoveNet didn't confirm — fall to Path B
+            console.log('[Path A] MoveNet did not confirm person → Path B')
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // PATH B — hasPerson = false  (no person seen last frame)
+        // PATH B — No person (close-up injury scan)
         //
-        //  This means we're likely looking at a close-up injury (burn, cut,
-        //  bleed) where the full body isn't in frame.
-        //
-        //  1. Groq VISION (Llama 4 Scout) → injury classification from image
-        //     → Burns 1st/2nd/3rd, Minor/Severe Bleeding, Minor/Major Cut
-        //  2. MoveNet → runs AFTER vision to get whatever body coordinates
-        //     exist (for AR anchor placement even in close-up shots)
-        //  3. Return injury result + keypoints
+        // ⚡ PARALLEL EXECUTION: Run Groq Vision AND MoveNet at the same time!
+        //    Previously sequential → 3-4s total.
+        //    Now parallel → max(Groq_time, MoveNet_time) ≈ 2-3s.
+        //    MoveNet finishes in ~500ms while Groq Vision runs in background.
         // ═══════════════════════════════════════════════════════════════════
-        console.log('[Path B] hasPerson=false → Groq Vision for injury, then MoveNet for coords')
+        console.log('[Path B] No person → Groq Vision + MoveNet in PARALLEL')
 
-        let injuryCode = null
-        let injuryConf = 0
+        const t1 = Date.now()
+        const [visionResult, mv] = await Promise.all([
+            // Groq Vision: burn / bleed / cut detection from image
+            imageBase64
+                ? analyzeScene(imageBase64, audioContext || '', null).catch(e => {
+                    console.log('[Groq/Vision] Error:', e.message)
+                    return { condition_code: 'NONE', confidence: 0 }
+                })
+                : Promise.resolve({ condition_code: 'NONE', confidence: 0 }),
 
-        if (imageBase64) {
-            try {
-                const visionResult = await analyzeScene(imageBase64, audioContext || '', null)
-                if (visionResult && visionResult.condition_code && visionResult.condition_code !== 'NONE') {
-                    injuryCode = visionResult.condition_code
-                    injuryConf = visionResult.confidence || 90
-                    console.log(`[Groq/Vision] ✅ ${injuryCode} (${injuryConf}%)`)
-                } else {
-                    console.log('[Groq/Vision] No injury detected')
-                }
-            } catch (e) {
-                console.log('[Groq/Vision] Error:', e.message)
-            }
+            // MoveNet: get AR coordinates in parallel (independent of vision result)
+            runMoveNet(imageBase64)
+        ])
+
+        console.log(`[Path B] Parallel done in ${Date.now() - t1}ms — vision=${visionResult.condition_code} movenet=${mv.scene || 'null'} hasPerson=${mv.hasPerson}`)
+
+        // ⚡ MoveNet heuristic wins — person detected lying/choking in this frame!
+        // This covers the case where hasPerson was false on the previous frame but
+        // MoveNet now confirms a person with a clear pose emergency.
+        if (mv.hasPerson && mv.scene) {
+            console.log(`[Path B/MoveNet] ✅ Heuristic: ${mv.scene} — total ${Date.now() - t_start}ms`)
+            const response = buildResponse(mv.scene, 88, mv.keypoints, true, 'movenet-heuristic', { rescuerArmsBent: mv.rescuerArmsBent })
+            saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
+            return res.json(response)
         }
 
-        // Step B2: MoveNet for AR coordinates (runs regardless of injury result)
-        const { keypoints, hasPerson, rescuerArmsBent } = await runMoveNet(imageBase64)
-        console.log(`[MoveNet] ${keypoints.length} keypoints for AR anchoring`)
-
-        if (injuryCode) {
-            const response = buildResponse(injuryCode, injuryConf, keypoints, hasPerson, 'groq-vision')
+        // Groq Vision found an injury (burn / bleed / cut)
+        if (visionResult && visionResult.condition_code && visionResult.condition_code !== 'NONE') {
+            console.log(`[Groq/Vision] ✅ ${visionResult.condition_code} — total ${Date.now() - t_start}ms`)
+            const response = buildResponse(visionResult.condition_code, visionResult.confidence || 90, mv.keypoints, mv.hasPerson, 'groq-vision')
             saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
             return res.json(response)
         }
 
         // Nothing detected
-        return res.json({ condition_code: 'NONE', confidence: 99, keypoints, hasPerson, source: 'clear' })
+        console.log(`[Clear] total ${Date.now() - t_start}ms`)
+        return res.json({ condition_code: 'NONE', confidence: 99, keypoints: mv.keypoints, hasPerson: mv.hasPerson, source: 'clear' })
 
     } catch (err) {
         console.error('[Route] Analyze error:', err.message)
