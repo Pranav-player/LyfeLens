@@ -129,6 +129,59 @@ export default function ARScreen() {
   // false → Groq vision (image) for burns/bleeds → MoveNet for AR coordinates
   const hasPersonRef = useRef(false);
 
+  // CPR Beat Counter — speaks "1, 2, 3..." at 100 BPM rhythm
+  const cprBeatInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cprBeatCount = useRef(0);
+
+  const stopCPRBeat = () => {
+    if (cprBeatInterval.current) {
+      clearInterval(cprBeatInterval.current);
+      cprBeatInterval.current = null;
+    }
+    cprBeatCount.current = 0;
+  };
+
+  const startCPRBeat = () => {
+    stopCPRBeat(); // clear any existing
+    cprBeatCount.current = 0;
+
+    // Wait 3 seconds for initial instructions to finish, then start beat
+    setTimeout(() => {
+      // Check if still in cardiac arrest
+      if (lastCondition.current !== 'CARDIAC_ARREST') return;
+
+      Speech.speak('Starting compressions. Push hard and fast.', {
+        rate: 1.2,
+        onDone: () => {
+          if (lastCondition.current !== 'CARDIAC_ARREST') return;
+
+          // 600ms = 100 BPM rhythm
+          cprBeatInterval.current = setInterval(() => {
+            if (lastCondition.current !== 'CARDIAC_ARREST') {
+              stopCPRBeat();
+              return;
+            }
+
+            cprBeatCount.current += 1;
+
+            if (cprBeatCount.current <= 30) {
+              // Speak every 5th beat number, click for others
+              if (cprBeatCount.current % 5 === 0 || cprBeatCount.current <= 3) {
+                Speech.speak(String(cprBeatCount.current), { rate: 1.8, pitch: 1.1 });
+              }
+            } else if (cprBeatCount.current === 31) {
+              Speech.speak('Stop. Give 2 rescue breaths now.', { rate: 1.3 });
+            } else if (cprBeatCount.current >= 35) {
+              // After ~2.4s pause for breaths, restart cycle
+              cprBeatCount.current = 0;
+              Speech.speak('Continue compressions.', { rate: 1.3 });
+            }
+          }, 600); // 100 BPM
+        }
+      });
+    }, 4000); // wait for initial voice steps to play
+  };
+
   useEffect(() => {
     if (!permission?.granted) {
       return () => { stopVoiceGuide(); };
@@ -246,6 +299,11 @@ export default function ARScreen() {
           wristBaselineSet.current = false;
           lastCompressionTime.current = Date.now();
           lastVoiceCorrection.current = Date.now();
+
+          // Start CPR beat counter for cardiac arrest
+          if (condition === 'CARDIAC_ARREST') {
+            startCPRBeat();
+          }
           
           // Fetch instructions (Groq or offline fallback)
           getMedicalInstructionsFromGroq(condition).then((steps) => {
@@ -271,9 +329,14 @@ export default function ARScreen() {
           hasPersonRef.current = data.hasPerson;
         }
 
-        // Use real keypoints from MoveNet
+        // Use real keypoints from MoveNet + inject overlay_anchor for precise positioning
         if (data.keypoints && data.keypoints.length > 0) {
-          setKeypoints(data.keypoints);
+          // Inject backend overlay_anchor as a named keypoint so overlays can anchor precisely
+          const kps = [...data.keypoints];
+          if (data.overlay_anchor) {
+            kps.push({ name: 'injury_anchor', x: data.overlay_anchor.x, y: data.overlay_anchor.y, score: 1.0 });
+          }
+          setKeypoints(kps);
 
           // === REAL-TIME CPR COACHING ENGINE ===
           if (condition === 'CARDIAC_ARREST') {
@@ -424,6 +487,7 @@ export default function ARScreen() {
     lastWristY.current = 0;
     lastCompressionTime.current = Date.now();
     lastVoiceCorrection.current = Date.now();
+    stopCPRBeat();  // Stop beat counter
   };
 
   if (!permission?.granted) {
