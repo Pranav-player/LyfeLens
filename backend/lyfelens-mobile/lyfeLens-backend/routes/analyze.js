@@ -6,7 +6,10 @@ const { saveSession } = require('../services/firebase')
 const { getAnchor } = require('../utils/getAnchor')
 const scenarios = require('../data/scenarios')
 
-// MoveNet pipeline — loaded lazily to avoid crash if TF not installed
+// Our own trained model (ONNX) — loaded lazily
+const { classifyImage, isModelAvailable } = require('../ml/onnxClassifier')
+
+// MoveNet pipeline — for pose-based detection
 let processFrame = null
 let moveNetReady = false
 
@@ -18,27 +21,54 @@ const initML = async () => {
         moveNetReady = true
         console.log('[ML] MoveNet pipeline loaded successfully')
     } catch (err) {
-        console.log('[ML] MoveNet not available, running Gemini-only mode:', err.message)
+        console.log('[ML] MoveNet not available:', err.message)
         moveNetReady = false
     }
 }
 
-// Initialize MoveNet in background (don't block server startup)
 initML()
+
+// Check for Moondream2 local VLM server
+const MOONDREAM_URL = process.env.MOONDREAM_URL || 'http://localhost:5050'
+let moondreamAvailable = false
+
+const checkMoondream = async () => {
+    try {
+        const resp = await fetch(`${MOONDREAM_URL}/health`)
+        if (resp.ok) {
+            moondreamAvailable = true
+            console.log('[ML] Moondream2 local VLM connected ✅')
+        }
+    } catch {
+        moondreamAvailable = false
+        console.log('[ML] Moondream2 not running — will use Gemini fallback')
+    }
+}
+checkMoondream()
+// Re-check every 30 seconds
+setInterval(checkMoondream, 30000)
 
 const cache = new NodeCache()
 
-// Pre-warm all 8 scenarios on startup
+// Pre-warm all scenarios on startup
 Object.entries(scenarios).forEach(([key, val]) => {
     cache.set(key, { ...val, condition_code: key, confidence: 95, source: 'prewarm' })
 })
-console.log('Cache pre-warmed with 8 scenarios')
+console.log('Cache pre-warmed with scenarios')
+
+// Check if our own ONNX classifier is available
+if (isModelAvailable()) {
+    console.log('[ML] Custom ONNX classifier found ✅ (lyfelens_model.onnx)')
+} else {
+    console.log('[ML] Custom ONNX classifier NOT found — will skip Stage 1')
+    console.log('     Train the model and drop lyfelens_model.onnx + lyfelens_classes.json in ml/')
+}
 
 router.post('/', async (req, res) => {
     const { sessionId, imageBase64, audioContext, lat, lng } = req.body
 
     try {
-        // ─── STEP 1: Run MoveNet for keypoints + pose classification ───
+        // ─── STAGE 1: MoveNet (Pose Detection — behavior-based) ───
         let keypoints = []
         let moveNetScene = null
         let hasPerson = false
@@ -50,32 +80,69 @@ router.post('/', async (req, res) => {
             hasPerson = mlResult.hasPerson
 
             if (moveNetScene) {
-                console.log(`[MoveNet] Pose classified: ${moveNetScene}`)
-            }
-            if (hasPerson) {
-                console.log(`[MoveNet] Person detected with ${keypoints.length} keypoints`)
+                console.log(`[Stage 1 - MoveNet] Pose: ${moveNetScene}`)
             }
         }
 
-        // ─── STEP 2: Determine condition code ───
+        // ─── STAGE 2: Our Custom ONNX Classifier (visual injury) ───
         let conditionCode = null
         let confidence = 0
         let bodyPart = 'chest'
         let source = 'none'
+        let detailedInstructions = null
 
-        // 2a. If MoveNet classified a pose (CHOKING, SEIZURE, CARDIAC_ARREST)
-        //     use it as primary — it's instant and works offline
+        // 2a. MoveNet pose classification (CPR, Choking, Seizure)
         if (moveNetScene && cache.has(moveNetScene)) {
             conditionCode = moveNetScene
             confidence = 85
             source = 'movenet'
             bodyPart = scenarios[moveNetScene]?.body_part || 'chest'
-            console.log(`[Route] Using MoveNet classification: ${conditionCode}`)
+            console.log(`[Stage 1] MoveNet → ${conditionCode}`)
         }
 
-        // 2b. If MoveNet couldn't classify (visual injuries like BLEEDING, BURNS)
-        //     OR if we want Gemini to confirm/refine, call Gemini
+        // 2b. Our own trained EfficientNet classifier
+        if (!conditionCode && imageBase64 && isModelAvailable()) {
+            try {
+                const onnxResult = await classifyImage(imageBase64)
+                if (onnxResult.condition_code && onnxResult.condition_code !== 'NONE' && onnxResult.confidence > 0.6) {
+                    conditionCode = onnxResult.condition_code
+                    confidence = Math.round(onnxResult.confidence * 100)
+                    source = 'lyfelens-vit'
+                    console.log(`[Stage 2] Own model → ${conditionCode} (${confidence}%)`)
+                    console.log(`          All probs:`, onnxResult.all_probs)
+                }
+            } catch (err) {
+                console.log(`[Stage 2] ONNX error: ${err.message}`)
+            }
+        }
+
+        // ─── STAGE 3: Moondream2 Local VLM (detailed instructions) ───
+        // If we detected a condition, get DETAILED scene-specific instructions
+        if (conditionCode && moondreamAvailable && imageBase64) {
+            try {
+                const mdResp = await fetch(`${MOONDREAM_URL}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageBase64 }),
+                })
+                if (mdResp.ok) {
+                    const mdData = await mdResp.json()
+                    detailedInstructions = {
+                        steps: mdData.steps || [],
+                        do_not: mdData.do_not || [],
+                        severity: mdData.severity || 'unknown',
+                        summary: mdData.summary || '',
+                    }
+                    console.log(`[Stage 3] Moondream2 → ${mdData.summary}`)
+                }
+            } catch (err) {
+                console.log(`[Stage 3] Moondream2 unavailable: ${err.message}`)
+            }
+        }
+
+        // ─── FALLBACK: Gemini (only if nothing else worked) ───
         if (!conditionCode && imageBase64) {
+            console.log(`[Fallback] Using Gemini...`)
             const geminiResult = await analyzeScene(imageBase64, audioContext || '', moveNetScene)
 
             if (geminiResult.condition_code && geminiResult.condition_code !== 'NONE') {
@@ -83,11 +150,11 @@ router.post('/', async (req, res) => {
                 confidence = geminiResult.confidence || 90
                 bodyPart = geminiResult.body_part_detected || 'chest'
                 source = 'gemini'
-                console.log(`[Route] Using Gemini classification: ${conditionCode}`)
+                console.log(`[Fallback] Gemini → ${conditionCode}`)
             }
         }
 
-        // 2c. No emergency detected by either system
+        // ─── No emergency detected ───
         if (!conditionCode) {
             return res.json({
                 condition_code: 'NONE',
@@ -98,7 +165,7 @@ router.post('/', async (req, res) => {
             })
         }
 
-        // ─── STEP 3: Build the full response ───
+        // ─── Build response ───
         const scenarioData = scenarios[conditionCode] || scenarios['CARDIAC_ARREST']
         const overlayAnchor = getAnchor(keypoints, bodyPart)
 
@@ -106,16 +173,18 @@ router.post('/', async (req, res) => {
             ...scenarioData,
             condition_code: conditionCode,
             confidence: confidence,
-            keypoints: keypoints,        // Real MoveNet body coordinates!
-            overlay_anchor: overlayAnchor, // Where to pin the detection box
+            keypoints: keypoints,
+            overlay_anchor: overlayAnchor,
             hasPerson: hasPerson,
-            source: source
+            source: source,
+            // Include detailed Moondream2 instructions if available
+            ...(detailedInstructions && { detailed: detailedInstructions }),
         }
 
-        // Save to Firebase async (don't block response)
+        // Save to Firebase async
         saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
 
-        console.log(`[Response] ${conditionCode} (${confidence}%) via ${source} | anchor: (${overlayAnchor.x.toFixed(2)}, ${overlayAnchor.y.toFixed(2)})`)
+        console.log(`[Response] ${conditionCode} (${confidence}%) via ${source}`)
 
         return res.json(response)
 
