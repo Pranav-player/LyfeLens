@@ -3,9 +3,9 @@
 
 const get = (kps, name) => kps.find(k => k.name === name)
 
-// STRICT lying detection: person must be truly horizontal
-// Standing people have nose.y << hip.y (nose near top of frame)
-// Lying people have nose.y ≈ hip.y AND both shoulders at similar Y
+// Lying detection: person must be roughly horizontal
+// Standing people have nose.y << hip.y (nose near top, hips middle)
+// Lying people have nose.y ≈ hip.y (both at similar vertical position)
 const isLying = (kps) => {
     const head = get(kps, 'nose')
     const hipL = get(kps, 'left_hip')
@@ -16,20 +16,15 @@ const isLying = (kps) => {
 
     if (!head || !head.valid || !hip || !hip.valid) return false
 
-    // Primary check: nose and hip at similar Y (truly horizontal)
-    // 0.15 is strict — standing people have ~0.4+ difference
+    // Primary: nose and hip Y within 0.25 (standing = 0.4+, lying = <0.25)
     const noseHipDiff = Math.abs(head.y - hip.y)
-    if (noseHipDiff > 0.15) return false
+    if (noseHipDiff > 0.25) return false
 
-    // Secondary check: shoulders roughly level (not one above the other like sitting)
+    // Secondary: shoulders roughly level when lying flat
     if (shoulderL?.valid && shoulderR?.valid) {
         const shoulderDiff = Math.abs(shoulderL.y - shoulderR.y)
-        if (shoulderDiff > 0.12) return false // Shoulders should be roughly level when lying
+        if (shoulderDiff > 0.18) return false
     }
-
-    // Tertiary check: nose should NOT be at the very top of frame (standing person)
-    // Lying person's nose is typically at y > 0.25
-    if (head.y < 0.15) return false
 
     return true
 }
