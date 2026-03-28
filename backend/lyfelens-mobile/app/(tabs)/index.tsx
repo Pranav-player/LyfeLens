@@ -145,41 +145,36 @@ export default function ARScreen() {
     stopCPRBeat(); // clear any existing
     cprBeatCount.current = 0;
 
-    // Wait 3 seconds for initial instructions to finish, then start beat
-    setTimeout(() => {
-      // Check if still in cardiac arrest
-      if (lastCondition.current !== 'CARDIAC_ARREST') return;
+    // "Stayin' Alive" tempo = 110 BPM = 545ms per beat
+    // AHA protocol: 30 compressions → 2 rescue breaths → repeat
+    Speech.speak('Get ready. Push hard and fast on the chest. Follow my count.', {
+      rate: 1.2,
+      onDone: () => {
+        if (lastCondition.current !== 'CARDIAC_ARREST') return;
 
-      Speech.speak('Starting compressions. Push hard and fast.', {
-        rate: 1.2,
-        onDone: () => {
-          if (lastCondition.current !== 'CARDIAC_ARREST') return;
+        // 545ms = 110 BPM ("Stayin' Alive" / "Billie Jean" tempo)
+        cprBeatInterval.current = setInterval(() => {
+          if (lastCondition.current !== 'CARDIAC_ARREST') {
+            stopCPRBeat();
+            return;
+          }
 
-          // 600ms = 100 BPM rhythm
-          cprBeatInterval.current = setInterval(() => {
-            if (lastCondition.current !== 'CARDIAC_ARREST') {
-              stopCPRBeat();
-              return;
-            }
+          cprBeatCount.current += 1;
 
-            cprBeatCount.current += 1;
-
-            if (cprBeatCount.current <= 30) {
-              // Speak every 5th beat number, click for others
-              if (cprBeatCount.current % 5 === 0 || cprBeatCount.current <= 3) {
-                Speech.speak(String(cprBeatCount.current), { rate: 1.8, pitch: 1.1 });
-              }
-            } else if (cprBeatCount.current === 31) {
-              Speech.speak('Stop. Give 2 rescue breaths now.', { rate: 1.3 });
-            } else if (cprBeatCount.current >= 35) {
-              // After ~2.4s pause for breaths, restart cycle
-              cprBeatCount.current = 0;
-              Speech.speak('Continue compressions.', { rate: 1.3 });
-            }
-          }, 600); // 100 BPM
-        }
-      });
-    }, 4000); // wait for initial voice steps to play
+          if (cprBeatCount.current <= 30) {
+            // Speak all beats — user syncs their pushes to the voice
+            Speech.speak(String(cprBeatCount.current), { rate: 2.0, pitch: 1.15 });
+          } else if (cprBeatCount.current === 31) {
+            Speech.speak('Stop. Tilt head back. Give 2 breaths.', { rate: 1.2 });
+          } else if (cprBeatCount.current === 37) {
+            // ~3.3s pause for 2 breaths (6 beats × 545ms)
+            cprBeatCount.current = 0;
+            Speech.speak('Again. Push!', { rate: 1.4, pitch: 1.1 });
+          }
+          // beats 32-36 = silence for rescue breaths
+        }, 545); // 110 BPM
+      }
+    });
   };
 
   useEffect(() => {
@@ -228,7 +223,8 @@ export default function ARScreen() {
       try {
         photo = await cameraRef.current.takePictureAsync({
           base64: true,
-          quality: 0.3,   // High enough for Groq Vision to detect burns/bleeds clearly
+          quality: 0.3,
+          shutterSound: false,  // ← SILENT capture, no click!
         });
       } catch (captureErr) {
         console.log(`[Frame ${frame}] Camera not ready, skipping`);
