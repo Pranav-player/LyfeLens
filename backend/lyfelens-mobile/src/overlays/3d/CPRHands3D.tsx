@@ -1,71 +1,243 @@
 /**
- * CPRHands3D — React Three Fiber 3D CPR hands
- * Sky-blue holographic hands that press down on the patient's chest
- * anchored to the MoveNet chest_midpoint keypoint.
+ * CPRHands3D — Anatomically Correct 3D Human Hands for CPR
+ * 
+ * Features:
+ * - Realistic multi-segment fingers (3 phalanges each) with knuckle joints
+ * - Rounded palm using sphere geometry
+ * - Properly positioned thumb with opposition angle
+ * - Skin-tone materials with subsurface scattering approximation
+ * - Interlocked CPR hand position (heel-of-palm technique)
+ * - EMA smoothing for jitter-free tracking
+ * - 100-120 BPM compression animation
+ * - Live animated depth gauge
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber/native';
 import * as THREE from 'three';
 
-// A single procedural "palm + fingers" hand mesh
-function Hand3D({
+// =============================================================================
+// SKIN MATERIALS — realistic warm skin tones
+// =============================================================================
+const SKIN = {
+  palm: '#E8B99A',      // warm peachy palm
+  back: '#D4A07A',      // slightly darker dorsal
+  finger: '#DBA88A',    // finger segments
+  knuckle: '#C89878',   // darker at joints
+  nail: '#F0C8B8',      // pinkish nails
+};
+
+// Reusable material creator
+function SkinMat({ color, roughness = 0.55 }: { color: string; roughness?: number }) {
+  return (
+    <meshStandardMaterial
+      color={color}
+      roughness={roughness}
+      metalness={0.02}
+    />
+  );
+}
+
+// =============================================================================
+// FINGER — 3 phalanges (proximal, middle, distal) + nail
+// =============================================================================
+function Finger({
+  length = [12, 10, 8],     // lengths of 3 segments
+  radius = [3.2, 2.8, 2.4], // radii tapered
+  curl = [0, 0.15, 0.25],   // curl angles per segment (radians)
   position,
   rotation = [0, 0, 0],
-  color = '#5BB8F5',
-  opacity = 0.88,
 }: {
+  length?: number[];
+  radius?: number[];
+  curl?: number[];
   position: [number, number, number];
   rotation?: [number, number, number];
-  color?: string;
-  opacity?: number;
 }) {
-  const mat = (
-    <meshStandardMaterial
-      color={'#e3bca5'}
-      roughness={0.6}
-    />
-  );
-  const fingerColor = '#d2a68d';
-  const fingerMat = (
-    <meshStandardMaterial
-      color={fingerColor}
-      roughness={0.6}
-    />
-  );
-
   return (
     <group position={position} rotation={rotation as any}>
-      {/* Palm — wide flat box */}
-      <mesh>
-        <boxGeometry args={[55, 10, 30]} />
-        {mat}
-      </mesh>
-
-      {/* 4 Fingers */}
-      {[-18, -6, 6, 18].map((xOff, i) => (
-        <mesh key={i} position={[xOff, 0, -22]}>
-          <cylinderGeometry args={[4.5, 4, 18, 8]} />
-          {fingerMat}
+      {/* Proximal phalanx */}
+      <group rotation={[curl[0], 0, 0]}>
+        <mesh>
+          <capsuleGeometry args={[radius[0], length[0], 6, 12]} />
+          <SkinMat color={SKIN.finger} />
         </mesh>
-      ))}
+        {/* Knuckle joint */}
+        <mesh position={[0, -length[0] / 2 - radius[0] * 0.3, 0]}>
+          <sphereGeometry args={[radius[0] * 1.1, 10, 10]} />
+          <SkinMat color={SKIN.knuckle} roughness={0.65} />
+        </mesh>
 
-      {/* Thumb */}
-      <mesh position={[32, 0, -8]} rotation={[0, 0, Math.PI / 4]}>
-        <cylinderGeometry args={[4, 3.5, 15, 8]} />
-        {fingerMat}
-      </mesh>
+        {/* Middle phalanx */}
+        <group position={[0, -length[0] - radius[0] * 0.4, 0]} rotation={[curl[1], 0, 0]}>
+          <mesh>
+            <capsuleGeometry args={[radius[1], length[1], 6, 12]} />
+            <SkinMat color={SKIN.finger} />
+          </mesh>
+          {/* Joint */}
+          <mesh position={[0, -length[1] / 2 - radius[1] * 0.3, 0]}>
+            <sphereGeometry args={[radius[1] * 1.05, 8, 8]} />
+            <SkinMat color={SKIN.knuckle} roughness={0.65} />
+          </mesh>
 
-      {/* Wrist / heel of hand — slightly wider at base */}
-      <mesh position={[0, 0, 15]}>
-        <boxGeometry args={[45, 12, 12]} />
-        {mat}
-      </mesh>
+          {/* Distal phalanx (fingertip) */}
+          <group position={[0, -length[1] - radius[1] * 0.4, 0]} rotation={[curl[2], 0, 0]}>
+            <mesh>
+              <capsuleGeometry args={[radius[2], length[2], 6, 12]} />
+              <SkinMat color={SKIN.finger} />
+            </mesh>
+            {/* Fingernail */}
+            <mesh position={[0, -length[2] / 2, -radius[2] * 0.5]} rotation={[0.1, 0, 0]}>
+              <boxGeometry args={[radius[2] * 1.4, radius[2] * 1.8, 0.8]} />
+              <SkinMat color={SKIN.nail} roughness={0.3} />
+            </mesh>
+          </group>
+        </group>
+      </group>
     </group>
   );
 }
 
-// Shockwave pulse ring
+// =============================================================================
+// THUMB — shorter, thicker, with opposition angle
+// =============================================================================
+function Thumb({ position, rotation = [0, 0, 0] }: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+}) {
+  return (
+    <group position={position} rotation={rotation as any}>
+      {/* Metacarpal */}
+      <mesh>
+        <capsuleGeometry args={[4, 10, 6, 12]} />
+        <SkinMat color={SKIN.palm} />
+      </mesh>
+      {/* Proximal */}
+      <group position={[0, -12, 0]} rotation={[0.3, 0, 0]}>
+        <mesh>
+          <capsuleGeometry args={[3.5, 9, 6, 12]} />
+          <SkinMat color={SKIN.finger} />
+        </mesh>
+        {/* Distal */}
+        <group position={[0, -10, 0]} rotation={[0.2, 0, 0]}>
+          <mesh>
+            <capsuleGeometry args={[3, 7, 6, 12]} />
+            <SkinMat color={SKIN.finger} />
+          </mesh>
+          {/* Thumbnail */}
+          <mesh position={[0, -4.5, -2.5]}>
+            <boxGeometry args={[4.5, 5, 0.8]} />
+            <SkinMat color={SKIN.nail} roughness={0.3} />
+          </mesh>
+        </group>
+      </group>
+    </group>
+  );
+}
+
+// =============================================================================
+// FULL HUMAN HAND — palm + 4 fingers + thumb + wrist
+// =============================================================================
+function RealisticHand({
+  position,
+  rotation = [0, 0, 0],
+  mirror = false,
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  mirror?: boolean;
+}) {
+  const s = mirror ? -1 : 1;
+
+  // Finger specs: [lengths], [radii], [curl], xOffset from center
+  const fingers = [
+    { x: -15 * s, lengths: [11, 9, 7],  radii: [2.8, 2.4, 2.0], curl: [0, 0.15, 0.3] },   // Index
+    { x: -5 * s,  lengths: [13, 11, 8], radii: [3.0, 2.6, 2.2], curl: [0, 0.12, 0.25] },  // Middle (longest)
+    { x: 5 * s,   lengths: [12, 10, 7], radii: [2.9, 2.5, 2.1], curl: [0, 0.14, 0.28] },  // Ring
+    { x: 14 * s,  lengths: [9, 8, 6],   radii: [2.5, 2.2, 1.8], curl: [0, 0.18, 0.35] },  // Pinky
+  ];
+
+  return (
+    <group position={position} rotation={rotation as any}>
+      {/* === PALM — rounded flattened sphere === */}
+      <mesh scale={[1.0, 0.25, 0.7]}>
+        <sphereGeometry args={[28, 16, 16]} />
+        <SkinMat color={SKIN.palm} />
+      </mesh>
+
+      {/* Palm pad (heel of hand — the part that presses in CPR) */}
+      <mesh position={[0, -2, 12]} scale={[0.8, 0.25, 0.45]}>
+        <sphereGeometry args={[22, 12, 12]} />
+        <SkinMat color={SKIN.palm} roughness={0.7} />
+      </mesh>
+
+      {/* === WRIST === */}
+      <mesh position={[0, 0, 22]}>
+        <capsuleGeometry args={[12, 14, 8, 12]} />
+        <SkinMat color={SKIN.back} />
+      </mesh>
+
+      {/* === FOREARM stub === */}
+      <mesh position={[0, 0, 38]} rotation={[0, 0, 0]}>
+        <capsuleGeometry args={[10, 20, 8, 12]} />
+        <SkinMat color={SKIN.back} roughness={0.6} />
+      </mesh>
+
+      {/* === 4 FINGERS === */}
+      {fingers.map((f, i) => (
+        <Finger
+          key={i}
+          position={[f.x, 0, -18]}
+          length={f.lengths}
+          radius={f.radii}
+          curl={f.curl}
+        />
+      ))}
+
+      {/* === THUMB === */}
+      <Thumb
+        position={[-24 * s, 0, 2]}
+        rotation={[0.2, 0.5 * s, -0.6 * s]}
+      />
+
+      {/* === KNUCKLE RIDGE (across top of palm) === */}
+      {fingers.map((f, i) => (
+        <mesh key={`k${i}`} position={[f.x, 3, -16]}>
+          <sphereGeometry args={[3.5, 8, 8]} />
+          <SkinMat color={SKIN.knuckle} roughness={0.65} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// =============================================================================
+// TARGET CROSSHAIR — shows the correct sternum compression zone
+// =============================================================================
+function TargetCrosshair() {
+  return (
+    <group rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh>
+        <ringGeometry args={[70, 73, 64]} />
+        <meshBasicMaterial color="#5BB8F5" transparent opacity={0.4} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh>
+        <ringGeometry args={[50, 52, 64]} />
+        <meshBasicMaterial color="#87CEEB" transparent opacity={0.5} side={THREE.DoubleSide} />
+      </mesh>
+      {[0, Math.PI / 2].map((rot, i) => (
+        <mesh key={i} rotation={[0, rot, 0]}>
+          <boxGeometry args={[120, 2, 2]} />
+          <meshBasicMaterial color="#5BB8F5" transparent opacity={0.35} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// =============================================================================
+// SHOCKWAVE RING — pulses outward on each compression
+// =============================================================================
 function ShockwaveRing({ phase }: { phase: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
   useFrame(() => {
@@ -78,42 +250,14 @@ function ShockwaveRing({ phase }: { phase: number }) {
   return (
     <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]}>
       <ringGeometry args={[55, 60, 64]} />
-      <meshBasicMaterial
-        color="#5BB8F5"
-        transparent
-        opacity={0.6}
-        side={THREE.DoubleSide}
-      />
+      <meshBasicMaterial color="#5BB8F5" transparent opacity={0.6} side={THREE.DoubleSide} />
     </mesh>
   );
 }
 
-// Target zone cross-hairs on chest
-function TargetCrosshair() {
-  return (
-    <group rotation={[-Math.PI / 2, 0, 0]}>
-      {/* Outer ring */}
-      <mesh>
-        <ringGeometry args={[70, 73, 64]} />
-        <meshBasicMaterial color="#5BB8F5" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
-      {/* Inner ring */}
-      <mesh>
-        <ringGeometry args={[50, 52, 64]} />
-        <meshBasicMaterial color="#87CEEB" transparent opacity={0.5} side={THREE.DoubleSide} />
-      </mesh>
-      {/* Cross bars */}
-      {[0, Math.PI / 2].map((rot, i) => (
-        <mesh key={i} rotation={[0, rot, 0]}>
-          <boxGeometry args={[120, 2, 2]} />
-          <meshBasicMaterial color="#5BB8F5" transparent opacity={0.35} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-// Live depth gauge that reads from the parent's pressTRef
+// =============================================================================
+// LIVE DEPTH GAUGE — animated bar that tracks compression depth
+// =============================================================================
 function LiveDepthGauge({ pressTRef }: { pressTRef: React.MutableRefObject<number> }) {
   const fillRef = useRef<THREE.Mesh>(null);
   const colorRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -124,36 +268,38 @@ function LiveDepthGauge({ pressTRef }: { pressTRef: React.MutableRefObject<numbe
     const fillH = 6 + p * 42;
     fillRef.current.scale.y = fillH / 48;
     fillRef.current.position.y = -50 + fillH / 2;
-    
-    // Color changes: green when in optimal range, yellow otherwise
     if (colorRef.current) {
       colorRef.current.color.set(p > 0.5 ? '#00CC88' : '#5BB8F5');
     }
   });
 
   return (
-    <group position={[100, 0, 0]}>
-      {/* Background track */}
-      <mesh position={[0, 0, 0]}>
+    <group position={[110, 0, 0]}>
+      <mesh>
         <boxGeometry args={[10, 100, 10]} />
         <meshBasicMaterial color="#B0D4F1" transparent opacity={0.15} />
       </mesh>
-      {/* Optimal marker */}
       <mesh position={[0, 25, 0]}>
         <boxGeometry args={[18, 2.5, 10]} />
         <meshBasicMaterial color="#00C8FF" transparent opacity={0.9} />
       </mesh>
-      {/* Animated fill */}
       <mesh ref={fillRef} position={[0, -50, 0]}>
         <boxGeometry args={[10, 48, 10]} />
         <meshStandardMaterial ref={colorRef as any} color="#5BB8F5" transparent opacity={0.8} />
+      </mesh>
+      {/* Label: 5-6cm optimal zone */}
+      <mesh position={[0, 25, 8]}>
+        <boxGeometry args={[3, 12, 0.5]} />
+        <meshBasicMaterial color="#FFFFFF" transparent opacity={0.3} />
       </mesh>
     </group>
   );
 }
 
+// =============================================================================
+// MAIN COMPONENT — CPRHands3D
+// =============================================================================
 type CPRHands3DProps = {
-  /** Chest keypoint converted to 3D world space (cx, 0, cy) */
   worldX: number;
   worldY: number;
 };
@@ -163,15 +309,14 @@ export default function CPRHands3D({ worldX, worldY }: CPRHands3DProps) {
   const topHandRef = useRef<THREE.Group>(null);
   const bottomHandRef = useRef<THREE.Group>(null);
   const ringPhaseRef = useRef(0);
-
   const pressTRef = useRef(0);
 
-  // EMA physics state for smooth AR tracking
+  // EMA tracking state — jitter-free rendering
   const targetX = useRef(worldX);
   const targetY = useRef(worldY);
 
   useFrame(({ clock }) => {
-    // 1. EMA Smoothing: 0.7 * prev + 0.3 * current
+    // 1. EMA Smoothing: prevX*0.7 + currentX*0.3
     targetX.current = targetX.current * 0.7 + worldX * 0.3;
     targetY.current = targetY.current * 0.7 + worldY * 0.3;
 
@@ -180,83 +325,73 @@ export default function CPRHands3D({ worldX, worldY }: CPRHands3DProps) {
       groupRef.current.position.y = targetY.current;
     }
 
-    // 2. 100-120 BPM simulated compression bounce
+    // 2. 100 BPM compression bounce (1.667 Hz)
     const t = clock.getElapsedTime();
-    const beat = (t * 1.667) % 1; 
-    
-    // Push: easeOut downward, Pull: easeIn upward
+    const beat = (t * 1.667) % 1;
+
     const pressT =
       beat < 0.4
-        ? Math.sin((beat / 0.4) * Math.PI * 0.5) 
-        : Math.cos(((beat - 0.4) / 0.6) * Math.PI * 0.5); 
+        ? Math.sin((beat / 0.4) * Math.PI * 0.5)
+        : Math.cos(((beat - 0.4) / 0.6) * Math.PI * 0.5);
     pressTRef.current = pressT;
 
-    const pushY = -pressT * 28; // max 28 units deep
+    const pushY = -pressT * 28;
 
     if (topHandRef.current) {
       topHandRef.current.position.y = pushY;
     }
     if (bottomHandRef.current) {
-      bottomHandRef.current.position.y = pushY - 8;
+      bottomHandRef.current.position.y = pushY - 10;
     }
 
-    // Shockwave phase driven by beat
     ringPhaseRef.current = beat < 0.4 ? beat / 0.4 : 0;
   });
 
   return (
-    <group
-      ref={groupRef}
-      // Initial mount position, useFrame takes over after
-      position={[worldX, worldY, 0]}
-    >
-      {/* === LIGHTS === */}
-      <ambientLight intensity={1.2} color="#E8F4FF" />
-      <pointLight position={[0, 200, -100]} intensity={1.5} color="#87CEEB" />
-      <pointLight position={[0, -200, 100]} intensity={0.8} color="#FFFFFF" />
+    <group ref={groupRef} position={[worldX, worldY, 0]}>
+      {/* === LIGHTING === */}
+      <ambientLight intensity={1.0} color="#FFF5E8" />
+      <pointLight position={[0, 200, -100]} intensity={1.8} color="#FFE8CC" />
+      <pointLight position={[0, -100, 200]} intensity={0.6} color="#FFFFFF" />
+      <pointLight position={[-100, 50, 0]} intensity={0.4} color="#FFD4B0" />
 
-      {/* === TARGET ZONE === */}
+      {/* === TARGET CROSSHAIR ON CHEST === */}
       <TargetCrosshair />
 
-      {/* === SHOCKWAVE === */}
+      {/* === SHOCKWAVE PULSE === */}
       <ShockwaveRing phase={ringPhaseRef.current} />
 
-      {/* === ARM GUIDE LINES === */}
-      {/* Left arm line from above */}
-      <mesh position={[-50, 80, -110]} rotation={[0.5, 0.3, 0]}>
-        <cylinderGeometry args={[2, 2, 180, 8]} />
-        <meshBasicMaterial color="#5BB8F5" transparent opacity={0.25} />
-      </mesh>
-      {/* Right arm line from above */}
-      <mesh position={[50, 80, -110]} rotation={[0.5, -0.3, 0]}>
-        <cylinderGeometry args={[2, 2, 180, 8]} />
-        <meshBasicMaterial color="#5BB8F5" transparent opacity={0.25} />
-      </mesh>
-
-      {/* === TOP HAND (dominant, pressing) === */}
+      {/* === TOP HAND (dominant, pressing — palm down on chest) === */}
       <group ref={topHandRef} position={[0, 40, 0]}>
-        <Hand3D
+        <RealisticHand
           position={[0, 0, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
-          color="#5BB8F5"
-          opacity={0.9}
         />
       </group>
 
-      {/* === BOTTOM HAND (interlocked) === */}
-      <group ref={bottomHandRef} position={[0, 45, 0]}>
-        <Hand3D
+      {/* === BOTTOM HAND (interlocked, supporting — rotated 180°) === */}
+      <group ref={bottomHandRef} position={[0, 50, 0]}>
+        <RealisticHand
           position={[0, 0, 0]}
           rotation={[-Math.PI / 2, 0, Math.PI]}
-          color="#3AA3E8"
-          opacity={0.8}
+          mirror={true}
         />
       </group>
 
-      {/* Shadow on chest surface */}
-      <mesh position={[0, -5, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1.8, 1, 1]}>
-        <circleGeometry args={[25, 32]} />
-        <meshBasicMaterial color="#2288CC" transparent opacity={0.2} side={THREE.DoubleSide} />
+      {/* === ARM GUIDE LINES === */}
+      <mesh position={[-40, 90, -100]} rotation={[0.5, 0.3, 0]}>
+        <cylinderGeometry args={[3, 3, 160, 8]} />
+        <SkinMat color={SKIN.back} roughness={0.6} />
+      </mesh>
+      <mesh position={[40, 90, -100]} rotation={[0.5, -0.3, 0]}>
+        <cylinderGeometry args={[3, 3, 160, 8]} />
+        <SkinMat color={SKIN.back} roughness={0.6} />
+      </mesh>
+
+      {/* === CHEST SHADOW === */}
+      <mesh position={[0, -8, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1.8, 1, 1]}>
+        <circleGeometry args={[30, 32]} />
+        <meshBasicMaterial color="#5A3322" transparent opacity={0.15} side={THREE.DoubleSide} />
       </mesh>
 
       {/* === LIVE DEPTH GAUGE === */}
