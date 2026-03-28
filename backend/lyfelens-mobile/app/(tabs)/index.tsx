@@ -137,21 +137,21 @@ export default function ARScreen() {
     const warmup = setTimeout(() => {
       cameraReady.current = true;
       console.log('[Camera] Ready — starting frame analysis');
-    }, 3000);
+    }, 1500);  // was 3000ms
 
-    // ADAPTIVE POLLING: fast during emergencies, slow during idle scanning
+    // ADAPTIVE POLLING: fast during emergencies, slower during idle scan
     let stopped = false;
     const scheduleNext = () => {
       if (stopped) return;
-      // Fast while emergency active; 1s idle (enough for scan, minimizes latency)
-      const delay = isEmergencyActive.current ? 600 : 1000;
+      // 400ms during emergency (AR tracking), 500ms idle (fast initial detection)
+      const delay = isEmergencyActive.current ? 400 : 500;
       setTimeout(async () => {
         await analyzeCurrentFrame();
         scheduleNext();
       }, delay);
     };
-    // Kick off after warmup
-    setTimeout(scheduleNext, 3200);
+    // Kick off shortly after warmup
+    setTimeout(scheduleNext, 1600);  // was 3200ms
 
     return () => {
       stopped = true;

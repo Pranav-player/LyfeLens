@@ -162,8 +162,9 @@ const analyzeWithGroq = async (imageBase64, audioContext, moveNetHint) => {
                     {
                         type: 'image_url',
                         image_url: {
-                            url: `data:image/jpeg;base64,${imageBase64}`,
-                            detail: 'low'   // Forces smallest image resolution — much faster
+                            url: `data:image/jpeg;base64,${imageBase64}`
+                            // No detail override — let Groq auto-select resolution
+                            // detail:'low' was stripping burn/skin texture needed for classification
                         }
                     },
                     {
@@ -273,7 +274,7 @@ const analyzeScene = async (imageBase64, audioContext = '', moveNetHint = null) 
         if (useGroq && client && now > groqCooldownUntil) {
             try {
                 const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Groq vision timeout (4s)')), 4000)
+                    setTimeout(() => reject(new Error('Groq vision timeout (6s)')), 6000)
                 )
                 text = await Promise.race([
                     analyzeWithGroq(imageBase64, audioContext, moveNetHint),
