@@ -122,6 +122,8 @@ export default function ARScreen() {
   const cameraReady = useRef(false);
   const frameCount = useRef(0);
   const wristBaselineSet = useRef(false);
+  // Incremented on every manual clear — lets us discard in-flight stale responses
+  const clearGeneration = useRef(0);
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -137,7 +139,8 @@ export default function ARScreen() {
     let stopped = false;
     const scheduleNext = () => {
       if (stopped) return;
-      const delay = isEmergencyActive.current ? 800 : 3500;
+      // Fast while emergency active; 1.5s in idle (was 3.5s — cuts detection delay)
+      const delay = isEmergencyActive.current ? 800 : 1500;
       setTimeout(async () => {
         await analyzeCurrentFrame();
         scheduleNext();
@@ -195,7 +198,8 @@ export default function ARScreen() {
           imageBase64: photo.base64,
           lat: 0,
           lng: 0,
-          activeCondition: isEmergencyActive.current ? lastCondition.current : null
+          activeCondition: isEmergencyActive.current ? lastCondition.current : null,
+          _gen: clearGeneration.current  // stamp the generation so we can discard stale responses
         })
       });
 
@@ -203,6 +207,23 @@ export default function ARScreen() {
 
       const data = await response.json();
       console.log(`[Frame ${frame}] Backend response: ${data.condition_code} (${data.confidence}%) via ${data.source}`);
+
+      // Discard stale responses that arrived after a manual clear
+      if (data._gen !== undefined && data._gen < clearGeneration.current) {
+        console.log(`[Frame ${frame}] Stale response (gen ${data._gen} < ${clearGeneration.current}), discarding`);
+        return;
+      }
+
+      // Secondary guard: if the user manually cleared while this frame was in-flight,
+      // and isEmergencyActive is now false, treat CARDIAC_ARREST/etc from tracking_cache as stale
+      if (
+        data.source === 'tracking_cache' &&
+        !isEmergencyActive.current &&
+        lastCondition.current === null
+      ) {
+        console.log(`[Frame ${frame}] Stale tracking_cache response after clear — ignoring`);
+        return;
+      }
 
       if (data.condition_code && data.condition_code !== 'NONE' && data.condition_code !== 'CLEAR') {
         const condition = data.condition_code;
@@ -382,6 +403,7 @@ export default function ARScreen() {
     setVoiceTotal(0);
     lastCondition.current = null;
     isEmergencyActive.current = false; // UNLOCK camera loop
+    clearGeneration.current += 1;      // Invalidate all in-flight frames from this emergency
     // Reset CPR biometric trackers
     compressionsCount.current = 0;
     wristBaselineSet.current = false;
