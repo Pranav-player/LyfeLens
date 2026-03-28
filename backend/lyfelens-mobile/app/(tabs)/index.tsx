@@ -124,6 +124,10 @@ export default function ARScreen() {
   const wristBaselineSet = useRef(false);
   // Incremented on every manual clear — lets us discard in-flight stale responses
   const clearGeneration = useRef(0);
+  // Persists whether a person was detected in the last frame — drives which AI path to use.
+  // true  → MoveNet → Groq text (keypoints) → CARDIAC_ARREST / CHOKING / SEIZURE
+  // false → Groq vision (image) for burns/bleeds → MoveNet for AR coordinates
+  const hasPersonRef = useRef(false);
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -199,7 +203,8 @@ export default function ARScreen() {
           lat: 0,
           lng: 0,
           activeCondition: isEmergencyActive.current ? lastCondition.current : null,
-          _gen: clearGeneration.current  // stamp the generation so we can discard stale responses
+          hasPerson: hasPersonRef.current,           // hint: did we see a person last frame?
+          _gen: clearGeneration.current              // stamp for stale response detection
         })
       });
 
@@ -260,6 +265,11 @@ export default function ARScreen() {
 
         setCurrentOverlay(condition);
         setDetectionSource(data.source || 'unknown');
+
+        // Always update hasPerson from backend so next frame takes the right path immediately
+        if (data.hasPerson !== undefined) {
+          hasPersonRef.current = data.hasPerson;
+        }
 
         // Use real keypoints from MoveNet
         if (data.keypoints && data.keypoints.length > 0) {
@@ -383,6 +393,10 @@ export default function ARScreen() {
         setCurrentOverlay(null);
         setHudData(null);
         setDetectionSource('');
+        // Update hasPerson from backend \u2014 next frame immediately uses right path
+        if (data.hasPerson !== undefined) {
+          hasPersonRef.current = data.hasPerson;
+        }
       }
     } catch (error) {
       console.log(`[Frame ${frame}] ❌ Failed:`, error);
