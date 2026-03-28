@@ -28,25 +28,6 @@ const initML = async () => {
 
 initML()
 
-// Check for Moondream2 local VLM server
-const MOONDREAM_URL = process.env.MOONDREAM_URL || 'http://localhost:5050'
-let moondreamAvailable = false
-
-const checkMoondream = async () => {
-    try {
-        const resp = await fetch(`${MOONDREAM_URL}/health`)
-        if (resp.ok) {
-            moondreamAvailable = true
-            console.log('[ML] Moondream2 local VLM connected ✅')
-        }
-    } catch {
-        moondreamAvailable = false
-        console.log('[ML] Moondream2 not running — will use Gemini fallback')
-    }
-}
-checkMoondream()
-// Re-check every 30 seconds
-setInterval(checkMoondream, 30000)
 
 const cache = new NodeCache()
 
@@ -102,7 +83,6 @@ router.post('/', async (req, res) => {
         let confidence = 0
         let bodyPart = 'chest'
         let source = 'none'
-        let detailedInstructions = null
 
         // 2a. MoveNet pose classification (CPR, Choking, Seizure)
         if (moveNetScene && cache.has(moveNetScene)) {
@@ -129,29 +109,6 @@ router.post('/', async (req, res) => {
             }
         }
 
-        // ─── STAGE 3: Moondream2 Local VLM (detailed instructions) ───
-        // If we detected a condition, get DETAILED scene-specific instructions
-        if (conditionCode && moondreamAvailable && imageBase64) {
-            try {
-                const mdResp = await fetch(`${MOONDREAM_URL}/analyze`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ imageBase64 }),
-                })
-                if (mdResp.ok) {
-                    const mdData = await mdResp.json()
-                    detailedInstructions = {
-                        steps: mdData.steps || [],
-                        do_not: mdData.do_not || [],
-                        severity: mdData.severity || 'unknown',
-                        summary: mdData.summary || '',
-                    }
-                    console.log(`[Stage 3] Moondream2 → ${mdData.summary}`)
-                }
-            } catch (err) {
-                console.log(`[Stage 3] Moondream2 unavailable: ${err.message}`)
-            }
-        }
 
         // ─── FALLBACK: Gemini (only if nothing else worked) ───
         if (!conditionCode && imageBase64) {
@@ -190,8 +147,6 @@ router.post('/', async (req, res) => {
             overlay_anchor: overlayAnchor,
             hasPerson: hasPerson,
             source: source,
-            // Include detailed Moondream2 instructions if available
-            ...(detailedInstructions && { detailed: detailedInstructions }),
         }
 
         // Save to Firebase async

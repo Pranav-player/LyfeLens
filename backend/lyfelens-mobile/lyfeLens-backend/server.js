@@ -16,11 +16,8 @@ app.use((req, res, next) => {
     next()
 })
 
-// Keep Render.com free tier awake
-const SELF_URL = process.env.RENDER_URL || 'http://localhost:3000'
-setInterval(() => {
-    fetch(`${SELF_URL}/`).catch(() => { })
-}, 10 * 60 * 1000)
+
+
 
 // Health check
 app.get('/', (req, res) => {
