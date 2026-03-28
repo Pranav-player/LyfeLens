@@ -226,12 +226,6 @@ node server.js
 
 ---
 
-## ⚠️ Disclaimer
-
-This application provides AI-based guidance and should not replace professional medical assistance. Always contact emergency services immediately in critical situations.
-
----
-
 ## ⭐ Support
 
 If you like this project, give it a ⭐ on GitHub!
