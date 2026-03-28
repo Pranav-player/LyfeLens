@@ -114,11 +114,23 @@ router.post('/', async (req, res) => {
                     return res.json(response)
                 }
 
-                // ─── TIER 2: Groq text from keypoints (~150ms, chat quota) ───
-                console.log('[Path A] Heuristic null → Groq text classification')
+                // ─── TIER 2+3: Groq KP text AND Groq Vision run in PARALLEL ─
+                // Vision kicks off immediately while text processes keypoints.
+                // If text fires → return instantly (vision result is discarded).
+                // If text misses → vision result is ALREADY READY (ran during text).
+                // Zero extra latency added compared to text-only Path A.
+                console.log('[Path A] Heuristic null → KP text + Vision in PARALLEL')
+                const visionPromise = imageBase64
+                    ? analyzeScene(imageBase64, audioContext || '', null).catch(e => {
+                        console.log('[Groq/Vision/BG] Error:', e.message)
+                        return { condition_code: 'NONE', confidence: 0 }
+                    })
+                    : Promise.resolve({ condition_code: 'NONE', confidence: 0 })
+
+                let kpResult = null
                 try {
                     const t1 = Date.now()
-                    const kpResult = await analyzeFromKeypoints(mv.keypoints)
+                    kpResult = await analyzeFromKeypoints(mv.keypoints)
                     console.log(`[Groq/KP] ${Date.now() - t1}ms`)
                     if (kpResult && kpResult.condition_code && kpResult.condition_code !== 'NONE') {
                         console.log(`[Groq/KP] ✅ ${kpResult.condition_code} (${kpResult.confidence}%) — total ${Date.now() - t_start}ms`)
@@ -126,33 +138,21 @@ router.post('/', async (req, res) => {
                         saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
                         return res.json(response)
                     }
-                    console.log('[Groq/KP] No emergency pose')
+                    console.log('[Groq/KP] No emergency pose — awaiting Vision result')
                 } catch (e) {
                     console.log('[Groq/KP] Error:', e.message)
                 }
 
-                // ─── TIER 3: Partial body? → Groq Vision for injury ───────
-                // Full body with a clear pose: typically 12+ well-distributed keypoints.
-                // Partial body (close-up arm/hand with burn or cut): fewer keypoints.
-                // Threshold at 10 — below that we're likely looking at a limb, not a full person.
-                const PARTIAL_BODY_THRESHOLD = 10
-                const isPartialBody = mv.keypoints.length < PARTIAL_BODY_THRESHOLD
-                if (isPartialBody && imageBase64) {
-                    console.log(`[Path A→Vision] Partial body (${mv.keypoints.length} kps < ${PARTIAL_BODY_THRESHOLD}) → Groq Vision for injuries`)
-                    try {
-                        const visionResult = await analyzeScene(imageBase64, audioContext || '', null)
-                        if (visionResult && visionResult.condition_code && visionResult.condition_code !== 'NONE') {
-                            console.log(`[Groq/Vision] ✅ ${visionResult.condition_code} on partial body — total ${Date.now() - t_start}ms`)
-                            const response = buildResponse(visionResult.condition_code, visionResult.confidence || 90, mv.keypoints, true, 'groq-vision-partial')
-                            saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
-                            return res.json(response)
-                        }
-                    } catch (e) {
-                        console.log('[Groq/Vision/Partial] Error:', e.message)
-                    }
+                // KP text found nothing — await the already-running Vision result
+                const visionResult = await visionPromise
+                if (visionResult && visionResult.condition_code && visionResult.condition_code !== 'NONE') {
+                    console.log(`[Groq/Vision] ✅ ${visionResult.condition_code} — total ${Date.now() - t_start}ms`)
+                    const response = buildResponse(visionResult.condition_code, visionResult.confidence || 90, mv.keypoints, true, 'groq-vision-pathA')
+                    saveSession(sessionId, { ...response, lat: lat || 0, lng: lng || 0 })
+                    return res.json(response)
                 }
 
-                // Full body present, no emergency of any kind
+                // No emergency detected by any method
                 return res.json({ condition_code: 'NONE', confidence: 95, keypoints: mv.keypoints, hasPerson: true, source: 'clear' })
             }
 
