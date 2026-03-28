@@ -299,11 +299,6 @@ export default function ARScreen() {
           wristBaselineSet.current = false;
           lastCompressionTime.current = Date.now();
           lastVoiceCorrection.current = Date.now();
-
-          // Start CPR beat counter for cardiac arrest
-          if (condition === 'CARDIAC_ARREST') {
-            startCPRBeat();
-          }
           
           // Fetch instructions (Groq or offline fallback)
           getMedicalInstructionsFromGroq(condition).then((steps) => {
@@ -547,6 +542,14 @@ export default function ARScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* === START CPR BEAT BUTTON — only during CARDIAC_ARREST === */}
+      {currentOverlay === 'CARDIAC_ARREST' && !cprBeatInterval.current && (
+        <TouchableOpacity style={styles.startCprBtn} onPress={startCPRBeat}>
+          <Text style={styles.startCprText}>▶  START CPR BEAT</Text>
+          <Text style={styles.startCprSub}>Tap when ready to begin compressions</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -617,5 +620,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 17,
+  },
+  startCprBtn: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 34, 34, 0.85)',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#FF4444',
+    shadowColor: '#FF0000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+    elevation: 10,
+    alignItems: 'center',
+  },
+  startCprText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  startCprSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+    marginTop: 4,
   },
 });
