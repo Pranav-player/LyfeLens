@@ -59,31 +59,34 @@ Real-time Guidance Layer (AR-style overlays + AI assistance services)
 
 LyfeLens/
 │
-├── LyfeLensMobile/                         # Root mobile workspace (high-level)
+├── LyfeLensMobile/                         # Root mobile workspace
 ├── docs/                                   # Project documentation
 │
 ├── backend/
-│   └── lyfelens-mobile/                    # 📱 Mobile App (Frontend - React Native)
+│   └── lyfelens-mobile/                    # 📱 Mobile App (Frontend - React Native / Expo)
 │       │
 │       ├── app/                            # Screens & navigation (Expo Router)
 │       ├── components/                     # Reusable UI components
+│       │
 │       ├── src/
-│       │   ├── overlays/                   # AR overlays & emergency UI guides
+│       │   ├── overlays/                   # AR overlays & emergency guidance UI
 │       │   └── services/                   # API calls & frontend integrations
 │       │
 │       ├── assets/
-│       │   └── images/                     # Static image assets
+│       │   └── images/                     # Image assets
 │       │
-│       └── lyfeLens-backend/               # ⚙️ Backend Server (Node.js)
+│       └── lyfeLens-backend/               # ⚙️ Backend Server (Node.js / Express)
 │           │
 │           ├── routes/                     # API route definitions
-│           ├── services/                   # External integrations & business logic
-│           ├── utils/                      # Helper functions & utilities
+│           ├── services/                   # Business logic & integrations
+│           ├── utils/                      # Utility/helper functions
 │           ├── data/                       # Static data & emergency scenarios
-│           └── ml/                         # ML models, inference & training scripts
+│           └── ml/                         # ML inference & training scripts
 │
 ├── .gitignore
 ├── README.md
+
+
 ## ⚙️ Tech Stack
 
 ### 📱 Frontend
