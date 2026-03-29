@@ -16,15 +16,15 @@ const AnimatedRect = Animated.createAnimatedComponent(Rect);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedG = Animated.createAnimatedComponent(G);
 
-type Props = { keypoint: { x: number, y: number } };
+type Props = { keypoint: { x: number, y: number }, beatActive?: boolean };
 
-export default function CPROverlay({ keypoint }: Props) {
+export default function CPROverlay({ keypoint, beatActive }: Props) {
   const cx = keypoint.x * width;
   const cy = keypoint.y * height;
   
   const [compressionCount, setCompressionCount] = useState(0);
   const phase = compressionCount < 30 ? 'COMPRESS' : 'BREATHE';
-  const BEAT = 300;
+  const BEAT = 275;
 
   const pushDepth = useSharedValue(0);
   const ringScale = useSharedValue(1);
@@ -32,9 +32,17 @@ export default function CPROverlay({ keypoint }: Props) {
   const glowPulse = useSharedValue(0.3);
 
   useEffect(() => {
+    if (!beatActive) {
+      // Not started yet — show static overlay, no animation
+      pushDepth.value = 0;
+      setCompressionCount(0);
+      return;
+    }
+
+    // Beat is active — start animations synced at 545ms (110 BPM)
     const interval = setInterval(() => {
       setCompressionCount(c => c >= 32 ? 0 : c + 1);
-    }, 600);
+    }, 545);
 
     pushDepth.value = withRepeat(
       withSequence(
@@ -53,7 +61,7 @@ export default function CPROverlay({ keypoint }: Props) {
     );
 
     return () => clearInterval(interval);
-  }, []);
+  }, [beatActive]);
 
   // 3D-like hands pressing down
   const rightHandProps = useAnimatedProps(() => ({

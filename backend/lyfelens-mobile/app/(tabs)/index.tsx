@@ -132,6 +132,7 @@ export default function ARScreen() {
   // CPR Beat Counter — speaks "1, 2, 3..." at 100 BPM rhythm
   const cprBeatInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const cprBeatCount = useRef(0);
+  const [cprBeatActive, setCprBeatActive] = useState(false);
 
   const stopCPRBeat = () => {
     if (cprBeatInterval.current) {
@@ -139,42 +140,37 @@ export default function ARScreen() {
       cprBeatInterval.current = null;
     }
     cprBeatCount.current = 0;
+    setCprBeatActive(false);
   };
 
   const startCPRBeat = () => {
-    stopCPRBeat(); // clear any existing
+    stopCPRBeat();
     cprBeatCount.current = 0;
+    Speech.stop();        // Kill any voice steps immediately
+    stopVoiceGuide();     // Stop voice guide loop
+    setCprBeatActive(true);
 
-    // "Stayin' Alive" tempo = 110 BPM = 545ms per beat
-    // AHA protocol: 30 compressions → 2 rescue breaths → repeat
-    Speech.speak('Get ready. Push hard and fast on the chest. Follow my count.', {
-      rate: 1.2,
-      onDone: () => {
-        if (lastCondition.current !== 'CARDIAC_ARREST') return;
+    // Start beat RIGHT AWAY — no delay
+    Speech.speak('Push!', { rate: 1.5, pitch: 1.2 });
 
-        // 545ms = 110 BPM ("Stayin' Alive" / "Billie Jean" tempo)
-        cprBeatInterval.current = setInterval(() => {
-          if (lastCondition.current !== 'CARDIAC_ARREST') {
-            stopCPRBeat();
-            return;
-          }
-
-          cprBeatCount.current += 1;
-
-          if (cprBeatCount.current <= 30) {
-            // Speak all beats — user syncs their pushes to the voice
-            Speech.speak(String(cprBeatCount.current), { rate: 2.0, pitch: 1.15 });
-          } else if (cprBeatCount.current === 31) {
-            Speech.speak('Stop. Tilt head back. Give 2 breaths.', { rate: 1.2 });
-          } else if (cprBeatCount.current === 37) {
-            // ~3.3s pause for 2 breaths (6 beats × 545ms)
-            cprBeatCount.current = 0;
-            Speech.speak('Again. Push!', { rate: 1.4, pitch: 1.1 });
-          }
-          // beats 32-36 = silence for rescue breaths
-        }, 545); // 110 BPM
+    // 545ms = 110 BPM
+    cprBeatInterval.current = setInterval(() => {
+      if (lastCondition.current !== 'CARDIAC_ARREST') {
+        stopCPRBeat();
+        return;
       }
-    });
+
+      cprBeatCount.current += 1;
+
+      if (cprBeatCount.current <= 30) {
+        Speech.speak(String(cprBeatCount.current), { rate: 2.0, pitch: 1.15 });
+      } else if (cprBeatCount.current === 31) {
+        Speech.speak('Stop. Give 2 breaths.', { rate: 1.2 });
+      } else if (cprBeatCount.current === 37) {
+        cprBeatCount.current = 0;
+        Speech.speak('Push!', { rate: 1.5, pitch: 1.2 });
+      }
+    }, 545);
   };
 
   useEffect(() => {
@@ -504,7 +500,7 @@ export default function ARScreen() {
 
       {/* Medical AR Overlays — SVG + 3D body-anchored */}
       {currentOverlay && (
-        <OverlayManager overlayType={currentOverlay} keypoints={keypoints} />
+        <OverlayManager overlayType={currentOverlay} keypoints={keypoints} cprBeatActive={cprBeatActive} />
       )}
 
       {/* Clear Button at Top Right */}
@@ -540,7 +536,7 @@ export default function ARScreen() {
       )}
 
       {/* === START CPR BEAT BUTTON — only during CARDIAC_ARREST === */}
-      {currentOverlay === 'CARDIAC_ARREST' && !cprBeatInterval.current && (
+      {currentOverlay === 'CARDIAC_ARREST' && !cprBeatActive && (
         <TouchableOpacity style={styles.startCprBtn} onPress={startCPRBeat}>
           <Text style={styles.startCprText}>▶  START CPR BEAT</Text>
           <Text style={styles.startCprSub}>Tap when ready to begin compressions</Text>

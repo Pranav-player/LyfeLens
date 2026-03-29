@@ -20,6 +20,7 @@ type Keypoint = { name?: string; x: number; y: number }
 type Props = {
     overlayType: string
     keypoints: Keypoint[]
+    cprBeatActive?: boolean
 }
 
 // Find keypoint by name, returns undefined if not found
@@ -42,13 +43,12 @@ const anchor = (keypoints: Keypoint[], specificNames: string[], fallback = { x: 
     return fallback
 }
 
-export default function OverlayManager({ overlayType, keypoints }: Props) {
+export default function OverlayManager({ overlayType, keypoints, cprBeatActive }: Props) {
     switch (overlayType) {
         case 'CARDIAC_ARREST':
-            // CPR: sternum → chest_midpoint → nose → center
             return <CPROverlay keypoint={
                 anchor(keypoints, ['sternum', 'chest_midpoint', 'nose'], { x: 0.5, y: 0.42 })
-            } />
+            } beatActive={cprBeatActive} />
 
         case 'BLEEDING':
         case 'MINOR_CUT':
