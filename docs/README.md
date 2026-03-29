@@ -90,7 +90,7 @@ LyfeLens/
 ├── LyfeLensMobile/                         # Root mobile workspace
 ├── docs/                                   # Project documentation
 │
-├── backend/
+├── LyfelensMoblie/
 │   └── lyfelens-mobile/                    # 📱 Mobile App (Frontend - React Native / Expo)
 │       │
 │       ├── app/                            # Screens & navigation (Expo Router)
@@ -170,7 +170,7 @@ cd LyfeLens
 ### 2️⃣ Run Frontend
 
 ```bash
-cd backend/lyfelens-mobile
+cd LyfelensMoblie/lyfelens-mobile
 npm install
 npx expo start
 ```
@@ -178,7 +178,7 @@ npx expo start
 ### 3️⃣ Run Backend
 
 ```bash
-cd backend/lyfelens-mobile/lyfeLens-backend
+cd LyfelensMoblie/lyfelens-mobile/lyfeLens-backend
 npm install
 node server.js
 ```
