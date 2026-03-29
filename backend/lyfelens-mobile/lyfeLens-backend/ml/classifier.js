@@ -16,15 +16,9 @@ const isLying = (kps) => {
 
     if (!head || !head.valid || !hip || !hip.valid) return false
 
-    // Primary: nose and hip Y within 0.25 (standing = 0.4+, lying = <0.25)
+    // Primary: nose and hip Y within 0.35 (standing = 0.4+, lying = <0.35)
     const noseHipDiff = Math.abs(head.y - hip.y)
-    if (noseHipDiff > 0.25) return false
-
-    // Secondary: shoulders roughly level when lying flat
-    if (shoulderL?.valid && shoulderR?.valid) {
-        const shoulderDiff = Math.abs(shoulderL.y - shoulderR.y)
-        if (shoulderDiff > 0.18) return false
-    }
+    if (noseHipDiff > 0.35) return false
 
     return true
 }
