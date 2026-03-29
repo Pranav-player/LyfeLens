@@ -1,224 +1,147 @@
 # 🚑 LyfeLens – AI + AR Powered Emergency Response System
 
 ## 📌 Overview
+LyfeLens is an intelligent emergency-response platform that combines Machine Learning and Augmented Reality to support users during high-stress medical situations such as burns, bleeding, fractures, seizures, and CPR scenarios.
 
-**LyfeLens** is an intelligent emergency response system that uses **Machine Learning (MoveNet)** and **Augmented Reality (AR)** to assist users during critical situations such as injuries, burns, bleeding, and cardiac arrest.
-
-The app acts as a **real-time life-saving assistant**, guiding users step-by-step with **AI-based detection** and **AR-powered instructions**.
-
----
+It works like a real-time first-aid assistant:
+- Detects possible emergency context from live camera input
+- Guides users with clear, step-by-step visual instructions
+- Helps users quickly access nearby hospitals and emergency contacts
 
 ## 🧠 Core Idea
+In emergencies, panic often delays the right action.  
+LyfeLens is designed to reduce that delay by turning a smartphone into a guided response tool.
 
-In emergencies, people often panic and don’t know what to do.
-
-👉 **LyfeLens solves this by:**
-
-* Detecting injury types using AI
-* Providing **instant AR-based first aid guidance**
-* Helping users quickly connect to nearby medical support
-
----
+LyfeLens helps by:
+- Identifying likely injury situations with AI
+- Showing immediate AR-style first-aid guidance
+- Connecting users to local medical help faster
 
 ## ✨ Features
 
 ### 🔍 Smart Injury Scanner (AI)
+Camera-assisted detection and classification for emergency contexts, including:
+- Bleeding
+- Burns
+- Wounds and trauma-related scenarios
+- CPR support situations
 
-Detects different types of injuries using camera input:
+Powered by pose and inference pipelines (including MoveNet-based processing).
 
-* 🩸 Bleeding
-* 🔥 Burns (1st, 2nd, 3rd degree)
-* ✂️ Cuts / wounds
-* ❤️ CPR situations
+### 🧑‍⚕️ AR-Guided First Aid and CPR
+Real-time visual guidance to help users perform actions correctly, such as:
+- Hand positioning
+- Compression rhythm
+- Body posture and safety checks
 
-⚙️ Powered by **MoveNet (pose detection + ML inference)**
-
----
-
-### 🧑‍⚕️ AR-Based CPR Guidance
-
-* Real-time CPR instructions using **Augmented Reality**
-* Visual guidance for:
-
-  * Hand placement
-  * Compression rhythm
-  * Body posture
-
-🧩 Integrated using **Grok API**
-
----
+Includes AI-assisted guidance services for contextual instructions.
 
 ### 📍 Emergency Dashboard
-
-* 🏥 **Nearby Hospitals**
-
-  * Click → redirects to **Google Maps**
-* 🚑 Emergency Contacts:
-
-  * Ambulance
-  * Rescue services
-  * NHAI Helpline
-
----
+- Nearby hospitals with map redirection
+- One-tap access to emergency numbers and rescue contacts
+- Fast navigation support during critical situations
 
 ### 🦸 Heroes Section (Community)
-
-* Users can:
-
-  * 💬 Leave feedback
-  * 🌟 View others’ feedback
-* Builds a **community-driven safety platform**
-
----
+- User feedback sharing
+- Community responses and experiences
+- Encourages a collaborative safety-first ecosystem
 
 ## 🏗️ System Architecture
-
-```
-          ┌──────────────────────┐
-          │   Mobile App (UI)    │
-          │ React Native (Expo)  │
-          └─────────┬────────────┘
-                    │
-        ┌───────────▼────────────┐
-        │  Backend API Server    │
-        │   (Node.js / Express)  │
-        └───────────┬────────────┘
-                    │
-     ┌──────────────▼──────────────┐
-     │   ML Inference Engine       │
-     │  (MoveNet + CV Models)      │
-     └──────────────┬──────────────┘
-                    │
-        ┌───────────▼────────────┐
-        │   AR Engine (Grok API) │
-        │ Real-time guidance     │
-        └────────────────────────┘
-```
-
----
+Mobile App (Expo React Native)  
+↓  
+Backend API Layer (Node.js / Express)  
+↓  
+ML Inference Pipeline (MoveNet + classification/processing modules)  
+↓  
+Real-time Guidance Layer (AR-style overlays + AI assistance services)
 
 ## 📁 Project Structure
 
-```
 LyfeLens/
 │
-├── backend/
-│   ├── lyfelens-mobile/           # 📱 Mobile App (Frontend)
-│   │   ├── .vscode/
-│   │   ├── app/                   # Screens & navigation
-│   │   ├── assets/images/         # Images
-│   │   ├── components/            # Reusable UI components
-│   │   ├── constants/             # Config & constants
-│   │   ├── hooks/                 # Custom hooks
-│   │   ├── scripts/               # Utility scripts
-│   │   ├── src/                   # Core logic
-│   │   ├── app.json
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   │
-│   ├── lyfeLens-backend/          # ⚙️ Backend Server
-│   │   ├── routes/                # API routes
-│   │   ├── controllers/           # Business logic
-│   │   ├── services/              # ML & API services
-│   │   └── server.js              # Entry point
+├── LyfeLensMobile/                         # Root mobile workspace (high-level)
+├── docs/                                   # Project documentation
 │
-├── docs/                          # Documentation
+├── backend/
+│   └── lyfelens-mobile/                    # 📱 Mobile App (Frontend - React Native)
+│       │
+│       ├── app/                            # Screens & navigation (Expo Router)
+│       ├── components/                     # Reusable UI components
+│       ├── src/
+│       │   ├── overlays/                   # AR overlays & emergency UI guides
+│       │   └── services/                   # API calls & frontend integrations
+│       │
+│       ├── assets/
+│       │   └── images/                     # Static image assets
+│       │
+│       └── lyfeLens-backend/               # ⚙️ Backend Server (Node.js)
+│           │
+│           ├── routes/                     # API route definitions
+│           ├── services/                   # External integrations & business logic
+│           ├── utils/                      # Helper functions & utilities
+│           ├── data/                       # Static data & emergency scenarios
+│           └── ml/                         # ML models, inference & training scripts
+│
 ├── .gitignore
 ├── README.md
-```
-
----
-
 ## ⚙️ Tech Stack
 
 ### 📱 Frontend
-
-* React Native (Expo)
-* TypeScript / JavaScript
+- React Native (Expo)
+- TypeScript / JavaScript
 
 ### ⚙️ Backend
-
-* Node.js
-* Express.js
+- Node.js
+- Express.js
 
 ### 🤖 Machine Learning
+- MoveNet (pose detection)
+- Classification and smoothing pipeline
+- ONNX-based inference components
 
-* MoveNet (Pose Detection)
-* Computer Vision Models
+### 🧩 Guidance Layer
+- AR-style visual overlays
+- AI service integrations for contextual assistance
 
-### 🧩 Augmented Reality
-
-* Grok API
-
-### 🌐 APIs & Services
-
-* Google Maps API
-
----
+### 🌐 APIs and Integrations
+- Maps and location-based hospital lookup
+- Emergency support integrations
 
 ## 🔄 Workflow
-
-1. 📷 User scans injury using camera
-2. 🤖 ML model detects condition
-3. 🧠 System classifies injury type
-4. 🕶️ AR provides real-time guidance
-5. 📍 Dashboard shows nearby hospitals
-6. 📞 Emergency contacts available instantly
-
----
+1. User scans the scene through the app camera.
+2. ML pipeline processes posture/context signals.
+3. System classifies the likely emergency scenario.
+4. Overlay guidance appears with step-by-step actions.
+5. Dashboard provides nearby hospital routing.
+6. Emergency contact access is available instantly.
 
 ## 🚀 Getting Started
 
-### 1️⃣ Clone Repository
-
-```bash
-git clone https://github.com/Pranav-player/LyfeLens.git
+### 1. Clone Repository
+git clone https://github.com/Pranav-player/LyfeLens.git  
 cd LyfeLens
-```
 
----
-
-### 2️⃣ Run Frontend
-
-```bash
-cd backend/lyfelens-mobile
-npm install
+### 2. Run Frontend
+cd backend/lyfelens-mobile  
+npm install  
 npx expo start
-```
 
----
-
-### 3️⃣ Run Backend
-
-```bash
-cd ../lyfeLens-backend
-npm install
+### 3. Run Backend
+cd backend/lyfelens-mobile/lyfeLens-backend  
+npm install  
 node server.js
-```
-
----
 
 ## 📊 Use Cases
-
-* 🚑 Road accident assistance
-* 🏠 Home emergency response
-* 🛣️ Highway safety (NHAI integration)
-* 🏥 First aid guidance
-
----
+- Roadside accident support
+- Home emergency first response
+- Highway and travel safety assistance
+- First-aid training and rapid guidance
 
 ## 👨‍💻 Contributors
-
-* Pranav Bhatia
-* Soumadip Patra
-* Sahil Mishra
-* Rohanish Raman
-
----
+- Pranav Bhatia
+- Soumadip Patra
+- Sahil Mishra
+- Rohanish Raman
 
 ## ⭐ Support
-
-If you like this project, give it a ⭐ on GitHub!
-
----
-
+If this project helps you, consider starring the repository and sharing feedback.
